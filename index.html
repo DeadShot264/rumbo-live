@@ -6,10 +6,11 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0B1220">
 <title>Rumbo · En directo</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   :root { --bg:#0B1220; --card:rgba(16,24,40,.86); --ink:#F4F7FB; --soft:#9FB0C8; --green:#1FD17A; --red:#FF6B6B; --line:rgba(255,255,255,.08); }
   * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
   #map { position:fixed; inset:0; }
   .leaflet-tile-pane { filter: saturate(.6) brightness(.82) contrast(1.05); }
@@ -60,7 +61,8 @@
 <div class="bar"><a class="btn" id="open" aria-disabled="true" target="_blank" rel="noopener">Abrir en Maps</a><a class="btn primary" id="go" aria-disabled="true" target="_blank" rel="noopener">Cómo llegar</a></div>
 <div class="center" id="state"><div><div style="font-size:42px">📡</div><h1>Conectando…</h1><p>Buscando la posición más reciente.</p></div></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>if (!window.L) document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');</script>
 <script>
 (async () => {
   const $ = id => document.getElementById(id);
@@ -74,12 +76,17 @@
   catch { show('🔒', 'No se puede abrir', 'Tu navegador no admite el cifrado necesario. Prueba con Chrome o Safari actualizados.'); return; }
   const decrypt = async body => { const b = unb64(body.trim()); const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12) }, key, b.slice(12)); return JSON.parse(new TextDecoder().decode(pt)); };
 
-  const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([40.42, -3.7], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-  const trail = L.polyline([], { color: '#1FD17A', weight: 5, opacity: .85, lineCap: 'round' }).addTo(map);
-  const glow = L.polyline([], { color: '#1FD17A', weight: 14, opacity: .18 }).addTo(map);
+  let map = null, trail = null, glow = null;
+  try {
+    map = L.map('map', { zoomControl: false, attributionControl: true }).setView([40.42, -3.7], 6);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    trail = L.polyline([], { color: '#1FD17A', weight: 5, opacity: .85, lineCap: 'round' }).addTo(map);
+    glow = L.polyline([], { color: '#1FD17A', weight: 14, opacity: .18 }).addTo(map);
+    map.on('dragstart', () => follow = false);
+    map.on('dblclick', () => follow = true);
+  } catch (e) { console.warn('Mapa no disponible', e); map = null; }
   let marker = null, acc = null, last = null, follow = true, ended = null, first = true;
-  map.on('dragstart', () => follow = false);
+  const seen = new Set();
 
   const fmtAgo = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`; };
   const hhmm = t => new Date(t).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -110,13 +117,15 @@
     $('open').setAttribute('aria-disabled', 'false'); $('go').setAttribute('aria-disabled', 'false');
   }
 
-  async function onMessage(body) {
+  async function onMessage(id, body) {
+    if (seen.has(id)) return; seen.add(id);
     let m; try { m = await decrypt(body); } catch { return; }
     if (m.end) { ended = m.end; render(); return; }
     if (typeof m.la !== 'number') return;
     if (last && m.t < last.t) return;
     ended = null; last = m;
     const p = [m.la, m.lo];
+    if (map) try {
     trail.addLatLng(p); glow.addLatLng(p);
     if (!marker) {
       marker = L.marker(p, { icon: L.divIcon({ className: '', html: '<div class="me"><div class="hd" id="hd"></div></div>', iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map);
@@ -125,16 +134,29 @@
     const hd = document.getElementById('hd');
     if (hd) { hd.style.display = m.hd != null && m.sp > 3 ? 'block' : 'none'; hd.style.transform = `rotate(${m.hd || 0}deg)`; }
     if (first) { map.setView(p, 15); first = false; } else if (follow) map.panTo(p, { animate: true });
+    } catch (e) { console.warn(e); }
     render();
   }
 
   // Historial reciente y luego en directo (los mensajes llegan cifrados; ntfy.sh nunca ve la clave)
-  const es = new EventSource(`https://ntfy.sh/${topic}/sse?since=12h`);
-  es.onmessage = e => { try { const j = JSON.parse(e.data); if (j.event === 'message' && j.message) onMessage(j.message); } catch {} };
-  es.onerror = () => { if (!last) show('📡', 'Esperando señal…', 'Aún no ha llegado ninguna posición. Se actualizará sola.'); };
-  setTimeout(() => { if (!last) show('⏳', 'Esperando la primera posición', 'Si el enlace es antiguo puede haber caducado. La página se actualiza sola.'); }, 9000);
+  const handle = j => { if (j && j.event === 'message' && j.message) onMessage(j.id || j.message.slice(0, 24), j.message); };
+  // En directo por SSE…
+  try {
+    const es = new EventSource(`https://ntfy.sh/${topic}/sse?since=12h`);
+    es.onmessage = e => { try { handle(JSON.parse(e.data)); } catch {} };
+    es.onerror = () => { if (!last) show('📡', 'Esperando señal…', 'Aún no ha llegado ninguna posición. Se actualizará sola.'); };
+  } catch (e) { console.warn(e); }
+  // …y una consulta cada 15 s por si la conexión en directo falla (redes que cortan SSE)
+  async function poll() {
+    try {
+      const r = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=12h`, { cache: 'no-store' });
+      const txt = await r.text();
+      for (const line of txt.split('\n')) { if (line.trim()) { try { handle(JSON.parse(line)); } catch {} } }
+    } catch (e) { console.warn(e); }
+  }
+  poll(); setInterval(poll, 15000);
+  setTimeout(() => { if (!last) show('⏳', 'Esperando la primera posición', 'Si el enlace es antiguo puede haber caducado. La página se actualiza sola.'); }, 12000);
   setInterval(render, 5000);
-  map.on('dblclick', () => follow = true);
 })();
 </script>
 </body>
