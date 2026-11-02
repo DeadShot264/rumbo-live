@@ -19,6 +19,8 @@
   .row { display:flex; align-items:center; gap:12px; }
   .avatar { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; font-weight:800; font-size:18px; color:#fff; flex:none;
             background:linear-gradient(135deg,var(--c,#1FD17A),#0B1220); box-shadow:inset 0 1px 0 rgba(255,255,255,.25); }
+  .avatar.car { width:84px; height:52px; border-radius:14px; background-size:contain; background-repeat:no-repeat; background-position:center;
+                background-color:rgba(255,255,255,.06); color:transparent; }
   .who { flex:1; min-width:0; }
   .name { font-weight:700; font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sub { color:var(--soft); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -96,6 +98,26 @@
   } catch (e) { console.warn('Mapa no disponible', e); map = null; }
   let marker = null, acc = null, last = null, follow = true, ended = null, first = true;
   const seen = new Set();
+  const imgs = {}; let carShown = '';
+  let routeLine = null, routeGlow = null, destMarker = null, routeAt = 0, fitted = false;
+  async function drawRoute(m) {
+    if (!map || m.dla == null || ended) return;
+    if (!destMarker) destMarker = L.circleMarker([m.dla, m.dlo], { radius: 8, color: '#fff', weight: 3, fillColor: '#FF4D6D', fillOpacity: 1 }).addTo(map);
+    if (Date.now() - routeAt < 120000) return;
+    routeAt = Date.now();
+    let pts = [[m.la, m.lo], [m.dla, m.dlo]];
+    try {
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${m.lo},${m.la};${m.dlo},${m.dla}?overview=simplified&geometries=geojson`);
+      const j = await r.json();
+      pts = j.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    } catch (e) { console.warn('Ruta no disponible', e); }
+    if (routeLine) { routeLine.setLatLngs(pts); routeGlow.setLatLngs(pts); }
+    else {
+      routeGlow = L.polyline(pts, { color: '#fff', weight: 9, opacity: .35 }).addTo(map);
+      routeLine = L.polyline(pts, { color: getComputedStyle(document.documentElement).getPropertyValue('--c').trim() || '#1FD17A', weight: 5, opacity: .95, dashArray: '10 10' }).addTo(map);
+    }
+    if (!fitted) { fitted = true; map.fitBounds(L.latLngBounds(pts.concat([[m.la, m.lo]])), { paddingTopLeft: [30, 190], paddingBottomRight: [30, 120] }); }
+  }
 
   const fmtAgo = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`; };
   const hhmm = t => new Date(t).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -105,7 +127,7 @@
     $('state').hidden = true; $('card').hidden = false;
     const m = last;
     const name = m.n || m.c || 'Viaje en directo';
-    $('name').textContent = name; $('av').textContent = (name.trim()[0] || 'R').toUpperCase();
+    $('name').textContent = name; if (!carShown) $('av').textContent = (name.trim()[0] || 'R').toUpperCase();
     if (m.col) document.documentElement.style.setProperty('--c', m.col);
     $('sp').textContent = m.sp != null ? Math.round(m.sp) : '—';
     if (m.eta != null && !ended) { $('eta').textContent = m.eta < 1 ? 'ya' : (m.eta < 60 ? `${Math.round(m.eta)} min` : `${Math.floor(m.eta / 60)} h ${Math.round(m.eta % 60)}`); $('etal').textContent = m.km != null ? `quedan ${m.km.toFixed(m.km < 10 ? 1 : 0)} km` : 'llegada'; }
@@ -129,7 +151,18 @@
   async function onMessage(id, body) {
     if (seen.has(id)) return; seen.add(id);
     let m; try { m = await decrypt(body); } catch { return; }
-    if (m.end) { ended = m.end; render(); return; }
+    if (m.img) {
+      // Imagen del coche en trozos: cuando están todos, se muestra en la ficha
+      const a = imgs[m.id] || (imgs[m.id] = new Array(m.n).fill(null)); a[m.i] = m.img;
+      if (a.every(x => x) && m.id > carShown) {
+        carShown = m.id;
+        const raw = a.map(x => atob(x)).join(''); const bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }));
+        const av = $('av'); av.classList.add('car'); av.style.backgroundImage = `url(${url})`;
+      }
+      return;
+    }
+    if (m.end) { ended = m.end; if (routeLine) { map.removeLayer(routeLine); map.removeLayer(routeGlow); routeLine = null; } render(); return; }
     if (typeof m.la !== 'number') return;
     if (last && m.t < last.t) return;
     ended = null; last = m;
@@ -142,7 +175,8 @@
     } else { marker.setLatLng(p); acc.setLatLng(p).setRadius(m.ac || 20); }
     const hd = document.getElementById('hd');
     if (hd) { hd.style.display = m.hd != null && m.sp > 3 ? 'block' : 'none'; hd.style.transform = `rotate(${m.hd || 0}deg)`; }
-    if (first) { map.setView(p, 15); first = false; } else if (follow) map.panTo(p, { animate: true });
+    if (first) { map.setView(p, 15); first = false; } else if (follow && fitted === false) map.panTo(p, { animate: true });
+    drawRoute(m);
     } catch (e) { console.warn(e); }
     render();
   }
