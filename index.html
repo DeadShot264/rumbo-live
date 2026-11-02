@@ -39,7 +39,9 @@
   .center h1 { font-size:22px; margin:12px 0 6px; } .center p { color:var(--soft); margin:0; max-width:340px; }
   .me { width:22px; height:22px; border-radius:50%; background:var(--c,#1FD17A); border:3px solid #fff; box-shadow:0 0 0 6px rgba(31,209,122,.25),0 6px 16px rgba(0,0,0,.5); position:relative; }
   .me .hd { position:absolute; left:50%; top:-15px; width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-bottom:10px solid #fff; transform-origin:50% 26px; margin-left:-6px; }
-  .brand { position:fixed; right:14px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:500; font-size:11px; color:var(--soft); background:var(--card); padding:4px 8px; border-radius:8px; }
+  .openapp { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(84px + env(safe-area-inset-bottom)); z-index:650; background:#fff; color:#0B1220;
+             font-weight:800; text-decoration:none; padding:11px 18px; border-radius:999px; box-shadow:0 10px 30px rgba(0,0,0,.45); font-size:14px; white-space:nowrap; }
+    .brand { position:fixed; right:14px; bottom:calc(132px + env(safe-area-inset-bottom)); z-index:500; font-size:11px; color:var(--soft); background:var(--card); padding:4px 8px; border-radius:8px; }
   .leaflet-control-attribution { background:rgba(11,18,32,.7)!important; color:var(--soft)!important; } .leaflet-control-attribution a { color:#cfe!important; }
 </style>
 </head>
@@ -57,6 +59,7 @@
     <div class="stat"><b id="ago">—</b><span>actualizado</span></div>
   </div>
 </div>
+<a class="openapp" id="openapp" hidden>Abrir en la app Rumbo</a>
 <div class="brand">Rumbo · cifrado de extremo a extremo</div>
 <div class="bar"><a class="btn" id="open" aria-disabled="true" target="_blank" rel="noopener">Abrir en Maps</a><a class="btn primary" id="go" aria-disabled="true" target="_blank" rel="noopener">Cómo llegar</a></div>
 <div class="center" id="state"><div><div style="font-size:42px">📡</div><h1>Conectando…</h1><p>Buscando la posición más reciente.</p></div></div>
@@ -71,6 +74,12 @@
   const topic = params.get('t'), keyB64 = params.get('k');
   if (!topic || !keyB64 || !/^[A-Za-z0-9_]{6,64}$/.test(topic)) { show('🔗', 'Enlace no válido', 'Pide que te vuelvan a enviar el enlace desde Rumbo.'); return; }
   const unb64 = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+  // En Android, si tienes Rumbo, el viaje se puede seguir desde la app (con avisos al llegar)
+  if (/Android/i.test(navigator.userAgent)) {
+    const a = $('openapp');
+    a.href = `intent://live?t=${topic}&k=${keyB64}#Intent;scheme=rumbo;package=es.kmapp;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+    a.hidden = false;
+  }
   let key;
   try { key = await crypto.subtle.importKey('raw', unb64(keyB64), 'AES-GCM', false, ['decrypt']); }
   catch { show('🔒', 'No se puede abrir', 'Tu navegador no admite el cifrado necesario. Prueba con Chrome o Safari actualizados.'); return; }
