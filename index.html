@@ -83,7 +83,7 @@
     a.hidden = false;
   }
   let key;
-  try { key = await crypto.subtle.importKey('raw', unb64(keyB64), 'AES-GCM', false, ['decrypt']); }
+  try { key = await crypto.subtle.importKey('raw', unb64(keyB64), 'AES-GCM', false, ['decrypt', 'encrypt']); }
   catch { show('🔒', 'No se puede abrir', 'Tu navegador no admite el cifrado necesario. Prueba con Chrome o Safari actualizados.'); return; }
   const decrypt = async body => { const b = unb64(body.trim()); const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12) }, key, b.slice(12)); return JSON.parse(new TextDecoder().decode(pt)); };
 
@@ -198,6 +198,20 @@
     } catch (e) { console.warn(e); }
   }
   poll(); setInterval(poll, 15000);
+  // Señal anónima y cifrada de «estoy mirando», para que quien comparte vea cuántos le siguen.
+  let viewer; try { viewer = localStorage.getItem('rumbo_viewer'); } catch (e) {}
+  if (!viewer) { viewer = Math.random().toString(36).slice(2, 14); try { localStorage.setItem('rumbo_viewer', viewer); } catch (e) {} }
+  const b64u = u8 => btoa(String.fromCharCode(...u8)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  async function beat() {
+    if (document.hidden) return;
+    try {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify({ v: viewer, t: Date.now() }))));
+      const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+      await fetch(`https://ntfy.sh/${topic}_v`, { method: 'POST', body: b64u(all) });
+    } catch (e) {}
+  }
+  beat(); setInterval(beat, 45000); document.addEventListener('visibilitychange', beat);
   setTimeout(() => { if (!last) show('⏳', 'Esperando la primera posición', 'Si el enlace es antiguo puede haber caducado. La página se actualiza sola.'); }, 12000);
   setInterval(render, 5000);
 })();
