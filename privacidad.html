@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rumbo · Política de privacidad</title>
+<style>
+  :root { --ink:#14181F; --soft:#5B6575; --line:#E3E7EE; --bg:#FFFFFF; --acc:#0E7A55; }
+  @media (prefers-color-scheme: dark) { :root { --ink:#EEF2F7; --soft:#A3AFC2; --line:#283142; --bg:#0F141C; --acc:#3DDC97; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 18px 64px; }
+  h1 { font-size:28px; margin:0 0 4px; } h2 { font-size:19px; margin:32px 0 8px; }
+  .meta { color:var(--soft); font-size:14px; margin-bottom:24px; }
+  table { border-collapse:collapse; width:100%; font-size:15px; } td,th { border-bottom:1px solid var(--line); padding:8px 6px; text-align:left; vertical-align:top; }
+  a { color:var(--acc); } .box { border:1px solid var(--line); border-radius:12px; padding:12px 16px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Política de privacidad de Rumbo</h1>
+<div class="meta">Última actualización: 8 de noviembre de 2026</div>
+
+<div class="box"><b>En resumen:</b> Rumbo no tiene cuentas de usuario, ni servidores propios, ni publicidad, ni analítica. Tus trayectos, gastos, fotos y ajustes se guardan solo en tu móvil. Solo salen de él cuando tú lo pides (compartir tu ubicación, enviar un informe o una copia de seguridad) o para consultar servicios de mapas y precios.</div>
+
+<h2>1. Quién es el responsable</h2>
+<p>Rumbo es una app para controlar el uso y los gastos del coche, desarrollada por un desarrollador independiente residente en España. Para cualquier consulta sobre privacidad, escribe al correo de contacto que aparece en la ficha de Rumbo en Google Play.</p>
+
+<h2>2. Qué datos usa la app y para qué</h2>
+<table>
+<tr><th>Dato</th><th>Para qué</th><th>Dónde se guarda</th></tr>
+<tr><td>Ubicación precisa, también en segundo plano</td><td>Detectar y registrar automáticamente tus trayectos en coche (recorrido, kilómetros, velocidad media), aunque la app esté cerrada, y guardar dónde aparcas.</td><td>Solo en tu móvil</td></tr>
+<tr><td>Actividad física (detección de «en coche»)</td><td>Saber cuándo empiezas y terminas de conducir sin gastar batería.</td><td>No se guarda</td></tr>
+<tr><td>Conexión Bluetooth con el coche</td><td>Empezar y terminar el trayecto al conectar o desconectar el coche.</td><td>Solo en tu móvil</td></tr>
+<tr><td>Vehículos, repostajes, gastos, mantenimiento, lugares y nombre</td><td>Calcular lo que te cuesta el coche y mostrar tus estadísticas.</td><td>Solo en tu móvil</td></tr>
+<tr><td>Fotos (del coche y de tickets)</td><td>Personalizar la tarjeta del coche y leer importes de tickets. El recorte de la foto y la lectura del ticket se hacen en el propio móvil (ML Kit de Google, sin enviar la imagen).</td><td>Solo en tu móvil</td></tr>
+<tr><td>Canción que suena (acceso a notificaciones, opcional)</td><td>Mostrar y controlar la música desde la app.</td><td>No se guarda</td></tr>
+</table>
+
+<h2>3. Compartir tu ubicación en directo (solo si lo activas)</h2>
+<p>Cuando eliges compartir tu viaje, la app cifra cada posición en tu móvil (AES-256-GCM) con una clave que solo va dentro del enlace que tú envías. Los mensajes cifrados se publican en <a href="https://ntfy.sh">ntfy.sh</a>, un servicio abierto de mensajería que no puede leerlos y los borra en unas horas. Quien recibe el enlace ve el mapa en esta web o en la app Rumbo. El mensaje incluye tu posición, velocidad, destino si lo eliges, tu nombre, el nombre y color de tu coche y, si lo eliges, una foto pequeña del coche. Quien te sigue envía también una señal cifrada y anónima para que veas cuántas personas te miran. Puedes parar cuando quieras y se detiene sola al acabar el tiempo o al llegar.</p>
+
+<h2>4. Servicios de terceros</h2>
+<ul>
+<li><b>Google Maps y Google Places</b> (Google): mapas, búsqueda de direcciones y lugares. Reciben el texto que buscas y la zona aproximada. <a href="https://policies.google.com/privacy">Privacidad de Google</a>.</li>
+<li><b>OSRM</b> (router.project-osrm.org) y <b>OpenStreetMap</b>: calcular la ruta por carretera y dibujar el mapa de la web de seguimiento. Reciben coordenadas de origen y destino.</li>
+<li><b>Ministerio para la Transición Ecológica</b>: precios oficiales de los carburantes (no se envía ningún dato personal).</li>
+<li><b>jsDelivr</b>: descarga de logotipos de marcas de coches (no se envía ningún dato personal).</li>
+<li><b>Google Play Services</b>: ubicación, detección de actividad y modelos de ML Kit que funcionan en el móvil.</li>
+</ul>
+
+<h2>5. Copias de seguridad</h2>
+<p>Si activas la copia automática, la app guarda un archivo con todos tus datos en la carpeta que elijas (por ejemplo, una de Google Drive). Además, Android puede incluir tus datos en la copia de seguridad de Google de tu dispositivo, según tus ajustes de Android.</p>
+
+<h2>6. Lo que Rumbo NO hace</h2>
+<ul>
+<li>No vende ni cede tus datos.</li>
+<li>No muestra publicidad ni usa herramientas de analítica o seguimiento.</li>
+<li>No pide crear una cuenta.</li>
+</ul>
+
+<h2>7. Cuánto tiempo se guardan y cómo borrarlos</h2>
+<p>Tus datos se guardan en el móvil hasta que los borres. Puedes borrar trayectos o gastos desde la app, o borrar todo desinstalando la app o desde Ajustes de Android › Apps › Rumbo › Almacenamiento › Borrar datos. Las copias que hayas guardado en tus carpetas las controlas tú.</p>
+
+<h2>8. Tus derechos</h2>
+<p>Según el Reglamento General de Protección de Datos (RGPD), puedes acceder a tus datos, corregirlos, borrarlos, oponerte a su uso o pedir una copia. Como están en tu móvil, puedes hacerlo directamente desde la app (Ajustes › Copia de seguridad › Enviar copia). Para cualquier duda, escribe al correo de contacto. También puedes reclamar ante la Agencia Española de Protección de Datos (<a href="https://www.aepd.es">aepd.es</a>).</p>
+
+<h2>9. Menores</h2>
+<p>Rumbo está pensada para personas que conducen y no se dirige a menores de 16 años.</p>
+
+<h2>10. Cambios</h2>
+<p>Si esta política cambia, se actualizará esta página y la fecha de arriba.</p>
+</main>
+</body>
+</html>
