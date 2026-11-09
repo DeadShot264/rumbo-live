@@ -211,7 +211,7 @@ function figSvg(fig, col, h, depth) {
     else { av.className = 'avatar'; av.style.backgroundImage = ''; av.innerHTML = figSvg(f, m.col || '#1FD17A', 46); }
     $('sp').textContent = m.sp != null ? Math.round(m.sp) : '—';
     let etaTxt = null;
-    if (m.eta != null && !ended) { etaTxt = m.eta < 1 ? 'ya' : (m.eta < 60 ? `${Math.round(m.eta)} min` : `${Math.floor(m.eta / 60)} h ${Math.round(m.eta % 60)}`); $('eta').textContent = etaTxt; $('etal').textContent = m.km != null ? `quedan ${m.km.toFixed(m.km < 10 ? 1 : 0)} km` : 'llegada'; }
+    if (m.eta != null && !ended) { etaTxt = m.eta < 1 ? 'ya' : (m.eta < 60 ? `${Math.round(m.eta)} min` : `${Math.floor(m.eta / 60)} h ${Math.round(m.eta % 60)}`); $('eta').textContent = etaTxt; $('etal').textContent = m.km != null ? `quedan ${m.km.toFixed(m.km < 10 ? 1 : 0)} km` + (m.tr ? ' · con tráfico' : '') : 'llegada'; }
     else { $('eta').textContent = '—'; $('etal').textContent = 'llegada'; }
     $('ago').textContent = fmtAgo(m.t);
     $('miniInfo').textContent = [m.sp != null ? `${Math.round(m.sp)} km/h` : null, etaTxt ? `llega en ${etaTxt}` : null, ended === 'arrived' ? 'ha llegado' : null].filter(Boolean).map(s => ' · ' + s).join('');
