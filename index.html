@@ -48,6 +48,7 @@
   body.compact .card, body.compact .bar, body.compact .openapp { display:none !important; }
   body:not(.compact) .mini { display:none; }
   .maplibregl-ctrl-attrib { font-size:10px; }
+  body.night .tool { background:#1B2333; color:#F4F7FB; }
 </style>
 </head>
 <body>
@@ -68,6 +69,7 @@
 <div class="tools" id="tools" hidden>
   <button class="tool" id="bView" title="Cambiar vista">🎯</button>
   <button class="tool" id="bSat" title="Satélite">🌍</button>
+  <button class="tool" id="bNight" title="Modo noche">🌙</button>
   <button class="tool" id="bFollow" title="Volver a su coche" hidden>📍</button>
   <button class="tool" id="bCompact" title="Solo el mapa">⤡</button>
 </div>
@@ -76,6 +78,8 @@
 <div class="center" id="state"><div><div style="font-size:42px">📡</div><h1>Conectando…</h1><p>Buscando la posición más reciente.</p></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>if (!window.THREE) { document.write('<script src="https://unpkg.com/three@0.160.0/build/three.min.js"><\/script>'); }</script>
 <script>if (!window.maplibregl) { document.write('<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"><script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"><\/script>'); }</script>
 <script>
 const FIGS = {"berlina": [["w", "M33.8 13 C33.8 12 37 12 37 13 L37 21 C37 22 33.8 22 33.8 21 Z M 6.2 13 C 6.2 12 3 12 3 13 L 3 21 C 3 22 6.2 22 6.2 21 Z M33.8 59 C33.8 58 37 58 37 59 L37 67 C37 68 33.8 68 33.8 67 Z M 6.2 59 C 6.2 58 3 58 3 59 L 3 67 C 3 68 6.2 68 6.2 67 Z"], ["b", "M20 2.5 C27 2.5 31 3.1 32.2 5.5 C35 7.5 35.6 9 35.6 12 L35.6 22 C35.6 25 34.6 26 34.6 29 L34.6 51 C34.6 54 35.6 55 35.6 58 L35.6 70 C35.6 74.5 32 76.6 28 77 C25 77.2 23 77.2 20 77.2 C17 77.2 15 77.2 12 77 C8 76.6 4.4 74.5 4.4 70 L4.4 58 C4.4 55 5.4 54 5.4 51 L5.4 29 C5.4 26 4.4 25 4.4 22 L4.4 12 C4.4 9 5 7.5 7.8 5.5 C9 3.1 13 2.5 20 2.5 Z"], ["g", "M7.4 27.5 C16 25.4 24 25.4 32.6 27.5 L30.6 35 C24 34.2 16 34.2 9.4 35 Z"], ["r", "M9.4 35 C16 34.2 24 34.2 30.6 35 L30.3 51 C24 51.5 16 51.5 9.7 51 Z"], ["g", "M9.7 51 C16 51.5 24 51.5 30.3 51 L32.4 59 C24 60.4 16 60.4 7.6 59 Z"], ["g", "M32.9 28.5 L33.7 36 L33.7 50 L32.5 54 L30.8 50.5 L30.8 35.6 Z M 7.1 28.5 L 6.3 36 L 6.3 50 L 7.5 54 L 9.2 50.5 L 9.2 35.6 Z"], ["h", "M27 5.5 C26.5 10.5 30.5 21 30 25.5 M 13 5.5 C 13.5 10.5 9.5 21 10 25.5 M8 71 C17 71.8 23 71.8 32 71"], ["m", "M34.2 27 C36.1 26.2 38 26.6 38.2 27.8 L38 29.4 C36.6 29.8 35.2 30.2 34.2 30.6 Z M 5.8 27 C 3.9 26.2 2 26.6 1.8 27.8 L 2 29.4 C 3.4 29.8 4.8 30.2 5.8 30.6 Z"], ["l", "M26 3.4 L31.6 5.1 L32.3 7.8 L30 7.1 L25.5 4.9 Z M 14 3.4 L 8.4 5.1 L 7.7 7.8 L 10 7.1 L 14.5 4.9 Z"], ["t", "M35.4 69 C35.2 73 31.6 75.6 27.6 76.7 L27.4 75.4 C30.6 74.4 34 72.4 34.2 69 Z M 4.6 69 C 4.8 73 8.4 75.6 12.4 76.7 L 12.6 75.4 C 9.4 74.4 6 72.4 5.8 69 Z"], ["t", "M12 75.8 L28 75.8 L28 76.5 L12 76.5 Z"]], "compacto": [["w", "M33.8 16 C33.8 15 37 15 37 16 L37 24 C37 25 33.8 25 33.8 24 Z M 6.2 16 C 6.2 15 3 15 3 16 L 3 24 C 3 25 6.2 25 6.2 24 Z M33.8 56 C33.8 55 37 55 37 56 L37 64 C37 65 33.8 65 33.8 64 Z M 6.2 56 C 6.2 55 3 55 3 56 L 3 64 C 3 65 6.2 65 6.2 64 Z"], ["b", "M20 7 C27 7 31 7.6 32.2 10 C35 12 35.6 12 35.6 15 L35.6 25 C35.6 28 34.8 29 34.8 32 L34.8 48 C34.8 51 35.6 52 35.6 55 L35.6 65.5 C35.6 70 32 72.1 28 72.5 C25 72.7 23 72.7 20 72.7 C17 72.7 15 72.7 12 72.5 C8 72.1 4.4 70 4.4 65.5 L4.4 55 C4.4 52 5.2 51 5.2 48 L5.2 32 C5.2 29 4.4 28 4.4 25 L4.4 15 C4.4 12 5 12 7.8 10 C9 7.6 13 7 20 7 Z"], ["g", "M7.2 28.5 C16 26.4 24 26.4 32.8 28.5 L30.8 35.5 C24 34.7 16 34.7 9.2 35.5 Z"], ["r", "M9.2 35.5 C16 34.7 24 34.7 30.8 35.5 L30.5 58 C24 58.5 16 58.5 9.5 58 Z"], ["g", "M9.5 58 C16 58.5 24 58.5 30.5 58 L32.6 65 C24 66.4 16 66.4 7.4 65 Z"], ["g", "M33.1 29.5 L33.9 36.5 L33.9 57 L32.7 61 L31 57.5 L31 36.1 Z M 6.9 29.5 L 6.1 36.5 L 6.1 57 L 7.3 61 L 9 57.5 L 9 36.1 Z"], ["h", "M27 10 C26.5 15 30.7 22 30.2 26.5 M 13 10 C 13.5 15 9.3 22 9.8 26.5 M7.8 66.5 C17 67.3 23 67.3 32.2 66.5"], ["m", "M34.4 28 C36.3 27.2 38.2 27.6 38.4 28.8 L38.2 30.4 C36.8 30.8 35.4 31.2 34.4 31.6 Z M 5.6 28 C 3.7 27.2 1.8 27.6 1.6 28.8 L 1.8 30.4 C 3.2 30.8 4.6 31.2 5.6 31.6 Z"], ["l", "M26 7.9 L31.6 9.6 L32.3 12.3 L30 11.6 L25.5 9.4 Z M 14 7.9 L 8.4 9.6 L 7.7 12.3 L 10 11.6 L 14.5 9.4 Z"], ["t", "M35.4 64.5 C35.2 68.5 31.6 71.1 27.6 72.2 L27.4 70.9 C30.6 69.9 34 67.9 34.2 64.5 Z M 4.6 64.5 C 4.8 68.5 8.4 71.1 12.4 72.2 L 12.6 70.9 C 9.4 69.9 6 67.9 5.8 64.5 Z"]], "suv": [["w", "M34.8 12.5 C34.8 11.5 38.4 11.5 38.4 12.5 L38.4 21.5 C38.4 22.5 34.8 22.5 34.8 21.5 Z M 5.2 12.5 C 5.2 11.5 1.6 11.5 1.6 12.5 L 1.6 21.5 C 1.6 22.5 5.2 22.5 5.2 21.5 Z M34.8 58.5 C34.8 57.5 38.4 57.5 38.4 58.5 L38.4 67.5 C38.4 68.5 34.8 68.5 34.8 67.5 Z M 5.2 58.5 C 5.2 57.5 1.6 57.5 1.6 58.5 L 1.6 67.5 C 1.6 68.5 5.2 68.5 5.2 67.5 Z"], ["b", "M20 4 C29 4 33 4.6 34.2 7 C36.4 9 37 9 37 12 L37 22 C37 25 36.2 26 36.2 29 L36.2 51 C36.2 54 37 55 37 58 L37 69.5 C37 74 34 76.1 30 76.5 C27 76.7 23 76.7 20 76.7 C17 76.7 13 76.7 10 76.5 C6 76.1 3 74 3 69.5 L3 58 C3 55 3.8 54 3.8 51 L3.8 29 C3.8 26 3 25 3 22 L3 12 C3 9 3.6 9 5.8 7 C7 4.6 11 4 20 4 Z"], ["g", "M5.8 25 C16 22.9 24 22.9 34.2 25 L32.2 31 C24 30.2 16 30.2 7.8 31 Z"], ["r", "M7.8 31 C16 30.2 24 30.2 32.2 31 L31.9 66 C24 66.5 16 66.5 8.1 66 Z"], ["g", "M8.1 66 C16 66.5 24 66.5 31.9 66 L34 71.5 C24 72.9 16 72.9 6 71.5 Z"], ["g", "M34.5 26 L35.3 32 L35.3 65 L34.1 69 L32.4 65.5 L32.4 31.6 Z M 5.5 26 L 4.7 32 L 4.7 65 L 5.9 69 L 7.6 65.5 L 7.6 31.6 Z"], ["h", "M29 7 C28.5 12 32.1 18.5 31.6 23 M 11 7 C 11.5 12 7.9 18.5 8.4 23 M6.4 70.5 C17 71.3 23 71.3 33.6 70.5"], ["m", "M35.8 24 C37.7 23.2 39.6 23.6 39.8 24.8 L39.6 26.4 C38.2 26.8 36.8 27.2 35.8 27.6 Z M 4.2 24 C 2.3 23.2 0.4 23.6 0.2 24.8 L 0.4 26.4 C 1.8 26.8 3.2 27.2 4.2 27.6 Z"], ["l", "M28 4.9 L33.6 6.6 L34.3 9.3 L32 8.6 L27.5 6.4 Z M 12 4.9 L 6.4 6.6 L 5.7 9.3 L 8 8.6 L 12.5 6.4 Z"], ["t", "M36.8 68.5 C36.6 72.5 33.6 75.1 29.6 76.2 L29.4 74.9 C32.6 73.9 35.4 71.9 35.6 68.5 Z M 3.2 68.5 C 3.4 72.5 6.4 75.1 10.4 76.2 L 10.6 74.9 C 7.4 73.9 4.6 71.9 4.4 68.5 Z"], ["k", "M11.4 33 L12.6 33 L12.6 64 L11.4 64 Z M27.4 33 L28.6 33 L28.6 64 L27.4 64 Z"]], "deportivo": [["w", "M34.4 14 C34.4 13 37.6 13 37.6 14 L37.6 22 C37.6 23 34.4 23 34.4 22 Z M 5.6 14 C 5.6 13 2.4 13 2.4 14 L 2.4 22 C 2.4 23 5.6 23 5.6 22 Z M34.4 58 C34.4 57 37.6 57 37.6 58 L37.6 66 C37.6 67 34.4 67 34.4 66 Z M 5.6 58 C 5.6 57 2.4 57 2.4 58 L 2.4 66 C 2.4 67 5.6 67 5.6 66 Z"], ["b", "M20 2 C26 2 30 2.6 31.2 5 C35.6 7 36.2 10 36.2 13 L36.2 23 C36.2 26 34.2 27 34.2 30 L34.2 50 C34.2 53 36.2 54 36.2 57 L36.2 70.5 C36.2 75 31 77.1 27 77.5 C24 77.7 23 77.7 20 77.7 C17 77.7 16 77.7 13 77.5 C9 77.1 3.8 75 3.8 70.5 L3.8 57 C3.8 54 5.8 53 5.8 50 L5.8 30 C5.8 27 3.8 26 3.8 23 L3.8 13 C3.8 10 4.4 7 8.8 5 C10 2.6 14 2 20 2 Z"], ["g", "M8.4 32.5 C16 30.4 24 30.4 31.6 32.5 L29.6 40 C24 39.2 16 39.2 10.4 40 Z"], ["r", "M10.4 40 C16 39.2 24 39.2 29.6 40 L29.3 51 C24 51.5 16 51.5 10.7 51 Z"], ["g", "M10.7 51 C16 51.5 24 51.5 29.3 51 L31.4 60 C24 61.4 16 61.4 8.6 60 Z"], ["g", "M31.9 33.5 L33.3 41 L33.3 50 L31.5 54 L29.8 50.5 L29.8 40.6 Z M 8.1 33.5 L 6.7 41 L 6.7 50 L 8.5 54 L 10.2 50.5 L 10.2 40.6 Z"], ["h", "M26 5 C25.5 10 29.5 26 29 30.5 M 14 5 C 14.5 10 10.5 26 11 30.5 M9 71.5 C17 72.3 23 72.3 31 71.5"], ["m", "M33.8 32 C35.7 31.2 37.6 31.6 37.8 32.8 L37.6 34.4 C36.2 34.8 34.8 35.2 33.8 35.6 Z M 6.2 32 C 4.3 31.2 2.4 31.6 2.2 32.8 L 2.4 34.4 C 3.8 34.8 5.2 35.2 6.2 35.6 Z"], ["l", "M25 2.9 L30.6 4.6 L31.3 7.3 L29 6.6 L24.5 4.4 Z M 15 2.9 L 9.4 4.6 L 8.7 7.3 L 11 6.6 L 15.5 4.4 Z"], ["t", "M36 69.5 C35.8 73.5 30.6 76.1 26.6 77.2 L26.4 75.9 C29.6 74.9 34.6 72.9 34.8 69.5 Z M 4 69.5 C 4.2 73.5 9.4 76.1 13.4 77.2 L 13.6 75.9 C 10.4 74.9 5.4 72.9 5.2 69.5 Z"], ["t", "M13 76.3 L27 76.3 L27 77 L13 77 Z"], ["s", "M17.6 2.2 L22.4 2.2 L22.4 31.5 L17.6 31.5 Z M17.6 60.6 L22.4 60.6 L22.4 77.4 L17.6 77.4 Z M18 40.3 L22 40.3 L22 50.7 L18 50.7 Z"]], "furgoneta": [["w", "M34.5 9 C34.5 8 37.9 8 37.9 9 L37.9 17 C37.9 18 34.5 18 34.5 17 Z M 5.5 9 C 5.5 8 2.1 8 2.1 9 L 2.1 17 C 2.1 18 5.5 18 5.5 17 Z M34.5 62 C34.5 61 37.9 61 37.9 62 L37.9 70 C37.9 71 34.5 71 34.5 70 Z M 5.5 62 C 5.5 61 2.1 61 2.1 62 L 2.1 70 C 2.1 71 5.5 71 5.5 70 Z"], ["b", "M20 2.5 C31 2.5 35.5 3 36.5 5.5 L36.5 76 C36.5 77.5 35.5 77.5 34.5 77.5 L20 77.5 L5.5 77.5 C4.5 77.5 3.5 77.5 3.5 76 L3.5 5.5 C4.5 3 9 2.5 20 2.5 Z"], ["g", "M5.3 13 C16 10.9 24 10.9 34.7 13 L32.7 19 C24 18.2 16 18.2 7.3 19 Z"], ["r", "M7.3 19 C16 18.2 24 18.2 32.7 19 L32.4 76 C24 76.5 16 76.5 7.6 76 Z"], ["g", "M35 14 L35.6 20 L35.6 29 L34.6 30 L32.9 28.5 L32.9 19.6 Z M 5 14 L 4.4 20 L 4.4 29 L 5.4 30 L 7.1 28.5 L 7.1 19.6 Z"], ["h", "M10 10 L10 10"], ["m", "M36.1 13 C38 12.2 39.9 12.6 40.1 13.8 L39.9 15.4 C38.5 15.8 37.1 16.2 36.1 16.6 Z M 3.9 13 C 2 12.2 0.1 12.6 -0.1 13.8 L 0.1 15.4 C 1.5 15.8 2.9 16.2 3.9 16.6 Z"], ["l", "M35.5 4.1 L36.2 5.5 L36.2 8.5 L31.5 5.3 L31.9 3.7 Z M 4.5 4.1 L 3.8 5.5 L 3.8 8.5 L 8.5 5.3 L 8.1 3.7 Z"], ["t", "M36.2 71.5 L36.2 76.3 L34.1 76.9 L34.1 72 Z M 3.8 71.5 L 3.8 76.3 L 5.9 76.9 L 5.9 72 Z"], ["k", "M10 33 L30 33 L30 33.8 L10 33.8 Z M10 48 L30 48 L30 48.8 L10 48.8 Z M10 63 L30 63 L30 63.8 L10 63.8 Z"]]};
@@ -143,6 +147,112 @@ function figSvg(fig, col, h, depth) {
   drawCar(cv.getContext('2d'), FIGS[fig] || FIGS.berlina, col || '#1FD17A', H, depth);
   return `<img src="${cv.toDataURL()}" width="${cv.width / dpr}" height="${cv.height / dpr}" alt="">`;
 }
+// Coche en 3D de Rumbo: modelo hecho con formas de three.js (original, sin archivos externos).
+// Medidas en metros, Y hacia arriba y el morro hacia -Z. La app usa imágenes renderizadas de este mismo modelo.
+function rumboCar3D(THREE, type, hex, opts) {
+  opts = opts || {};
+  const T = {
+    berlina:   { L: 4.7, W: 1.84, clr: 0.2, belt: 0.98, roof: 1.5, hood: 1.25, trunk: 0.95, rake: 0.75, rear: 0.6, axF: 1.45, axR: -1.35, r: 0.37 },
+    compacto:  { L: 4.1, W: 1.8, clr: 0.2, belt: 0.98, roof: 1.55, hood: 1.0, trunk: 0.25, rake: 0.72, rear: 0.2, axF: 1.3, axR: -1.25, r: 0.36 },
+    suv:       { L: 4.6, W: 1.9, clr: 0.28, belt: 1.12, roof: 1.76, hood: 1.15, trunk: 0.22, rake: 0.6, rear: 0.18, axF: 1.4, axR: -1.35, r: 0.42, rails: true },
+    deportivo: { L: 4.5, W: 1.95, clr: 0.14, belt: 0.86, roof: 1.3, hood: 1.6, trunk: 0.7, rake: 0.95, rear: 1.15, axF: 1.38, axR: -1.4, r: 0.38, wing: true },
+    furgoneta: { L: 5.0, W: 2.0, clr: 0.24, belt: 1.12, roof: 2.05, hood: 0.75, trunk: 0.0, rake: 0.55, rear: 0.0, axF: 1.75, axR: -1.65, r: 0.38, box: true },
+  };
+  const P = T[type] || T.berlina;
+  const L = P.L, W = P.W, hl = L / 2;
+  const g = new THREE.Group();
+  const phys = opts.physical !== false;
+  const paint = opts.bodyMaterial || (phys ? new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex || '#1FD17A'), metalness: opts.metal != null ? opts.metal : 0.55, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 })
+    : new THREE.MeshStandardMaterial({ color: new THREE.Color(hex || '#1FD17A'), metalness: 0.15, roughness: 0.38 }));
+  const glass = phys ? new THREE.MeshPhysicalMaterial({ color: 0x0d141c, metalness: 0.2, roughness: 0.05, clearcoat: 1 }) : new THREE.MeshStandardMaterial({ color: 0x1a2430, metalness: 0.3, roughness: 0.15 });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.9 });
+  const rim = new THREE.MeshStandardMaterial({ color: 0xb9bec6, metalness: 0.9, roughness: 0.25 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x1b1e23, roughness: 0.6 });
+  const head = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff3d0, emissiveIntensity: 1.6 });
+  const tail = new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff1010, emissiveIntensity: 1.4 });
+  const parts = { body: [] };
+
+  // Extrusión de un perfil lateral (x = largo, morro en +x; y = alto) con el ancho w, redondeada
+  function sideShape(pts, w, bevel, mat) {
+    const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]);
+    pts.slice(1).forEach(p => p.length > 2 ? s.quadraticCurveTo(p[2], p[3], p[0], p[1]) : s.lineTo(p[0], p[1]));
+    const geo = new THREE.ExtrudeGeometry(s, { depth: w - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 5, curveSegments: 14 });
+    geo.translate(0, 0, -(w - 2 * bevel) / 2); geo.rotateY(Math.PI / 2);
+    const m = new THREE.Mesh(geo, mat); g.add(m); return m;
+  }
+  const y0 = P.clr, belt = P.belt, r = P.r;
+  // Carrocería baja: paso de rueda recortado y morro/trasera redondeados
+  const fA = P.axF, rA = P.axR, ar = r + 0.06;
+  let lower;
+  if (P.box) {
+    lower = [[hl - 0.05, y0 + 0.05], [hl, belt - 0.15, hl + 0.02, y0 + 0.4], [hl - 0.25, belt + 0.02, hl - 0.02, belt], [-hl + 0.05, belt + 0.02], [-hl, y0 + 0.1],
+      [rA - ar, y0 + 0.05], [rA - ar * 0.7, r + 0.33, rA - ar, r + 0.2], [rA + ar * 0.7, r + 0.33, rA, r + ar + 0.02], [rA + ar, y0 + 0.05],
+      [fA - ar, y0 + 0.05], [fA - ar * 0.7, r + 0.33, fA - ar, r + 0.2], [fA + ar * 0.7, r + 0.33, fA, r + ar + 0.02], [fA + ar, y0 + 0.05]];
+  } else {
+    const nose = hl, tailX = -hl;
+    lower = [[nose - 0.12, y0 + 0.06], [nose, y0 + 0.42, nose + 0.02, y0 + 0.12], [nose - 0.12, belt - 0.12, nose + 0.01, belt - 0.2], [nose - P.hood * 0.5, belt - 0.02, nose - 0.3, belt - 0.03],
+      [nose - P.hood, belt + 0.02], [tailX + P.trunk + 0.05, belt + 0.03], [tailX + 0.12, belt - 0.02, tailX + Math.max(0.2, P.trunk * 0.4), belt + 0.02], [tailX, belt - 0.3, tailX + 0.02, belt - 0.08],
+      [tailX + 0.06, y0 + 0.08, tailX - 0.01, y0 + 0.3],
+      [rA - ar, y0 + 0.06], [rA - ar * 0.7, r + 0.3, rA - ar, r + 0.18], [rA + ar * 0.7, r + 0.3, rA, r + ar], [rA + ar, y0 + 0.06],
+      [fA - ar, y0 + 0.06], [fA - ar * 0.7, r + 0.3, fA - ar, r + 0.18], [fA + ar * 0.7, r + 0.3, fA, r + ar], [fA + ar, y0 + 0.06]];
+  }
+  parts.body.push(sideShape(lower, W, 0.14, paint));
+  // Habitáculo de cristal y techo del color del coche
+  const wsBase = hl - P.hood, wsTop = wsBase - P.rake, rwBase = -hl + P.trunk, rwTop = rwBase + Math.max(P.rear, 0.12);
+  const cab = P.box ? [[wsBase + 0.05, belt], [wsTop + 0.15, P.roof - 0.05, wsBase - 0.05, P.roof - 0.1], [-hl + 0.06, P.roof - 0.04], [-hl + 0.04, belt]]
+    : [[wsBase, belt], [wsTop, P.roof - 0.07, wsTop + P.rake * 0.35, P.roof - 0.16], [rwTop, P.roof - 0.08], [rwBase, belt, rwTop - 0.1, P.roof - 0.3]];
+  sideShape(cab, W * 0.84, 0.1, glass);
+  const roofPts = P.box ? [[wsTop + 0.2, P.roof + 0.0], [-hl + 0.14, P.roof + 0.0], [-hl + 0.14, P.roof + 0.06], [wsTop + 0.25, P.roof + 0.06]]
+    : [[wsTop + 0.02, P.roof - 0.01], [rwTop + 0.06, P.roof - 0.01], [rwTop - 0.0, P.roof + 0.05], [wsTop + 0.08, P.roof + 0.05]];
+  parts.body.push(sideShape(roofPts, W * 0.82, 0.05, paint));
+  // Ruedas
+  [[fA, 1], [fA, -1], [rA, 1], [rA, -1]].forEach(([z, s]) => {
+    const tyre = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.26, 28), rubber); tyre.rotation.z = Math.PI / 2;
+    tyre.position.set(s * (W / 2 - 0.15), r, -z); g.add(tyre);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.62, r * 0.62, 0.02, 24), rim); hub.rotation.z = Math.PI / 2;
+    hub.position.set(s * (W / 2 - 0.015), r, -z); g.add(hub);
+  });
+  // Faros, pilotos, retrovisores, parrilla
+  const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+  const fy = P.box ? belt - 0.25 : belt - 0.16;
+  [-1, 1].forEach(s => {
+    box(0.42, 0.1, 0.12, head, s * (W / 2 - 0.33), fy, -(hl - 0.04));
+    box(0.4, 0.09, 0.08, tail, s * (W / 2 - 0.3), P.box ? belt - 0.2 : belt - 0.12, hl - 0.02 - (P.box ? 0 : 0.02));
+    const mir = box(0.22, 0.12, 0.12, paint, s * (W / 2 + 0.06), belt + 0.08, -(wsBase - 0.15)); parts.body.push(mir);
+  });
+  if (!P.box) box(W * 0.62, 0.05, 0.06, tail, 0, belt - 0.12, hl - 0.03);
+  box(W * 0.42, 0.14, 0.06, trim, 0, y0 + 0.28, -(hl + 0.01));
+  if (P.rails) [-1, 1].forEach(s => box(0.05, 0.05, (wsTop - rwTop) * 0.9, trim, s * W * 0.33, P.roof + 0.04, -(wsTop + rwTop) / 2));
+  if (P.wing) { box(W * 0.9, 0.03, 0.22, trim, 0, belt + 0.2, hl - 0.18); [-1, 1].forEach(s => box(0.04, 0.18, 0.1, trim, s * W * 0.32, belt + 0.1, hl - 0.18)); }
+  // Sombra suave en el suelo
+  if (opts.shadow !== false) {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+    const rg = x.createRadialGradient(64, 64, 10, 64, 64, 64); rg.addColorStop(0, 'rgba(0,0,0,0.55)'); rg.addColorStop(0.6, 'rgba(0,0,0,0.3)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = rg; x.fillRect(0, 0, 128, 128);
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.5, L * 1.25), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+    sh.rotation.x = -Math.PI / 2; sh.position.y = 0.01; sh.renderOrder = -1; g.add(sh); parts.shadow = sh;
+  }
+  g.userData = { length: L, width: W, parts, paint };
+  return g;
+}
+
+// Entorno para los reflejos: cielo claro arriba, horizonte brillante y suelo oscuro
+function rumboEnv(THREE, renderer) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d');
+  const gr = x.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#dfe9f5'); gr.addColorStop(0.42, '#ffffff'); gr.addColorStop(0.5, '#9aa7b8'); gr.addColorStop(0.56, '#3a414b'); gr.addColorStop(1, '#16191d');
+  x.fillStyle = gr; x.fillRect(0, 0, 512, 256);
+  x.fillStyle = 'rgba(255,255,255,0.9)'; x.fillRect(60, 60, 120, 28); x.fillRect(300, 50, 140, 24);
+  const tex = new THREE.CanvasTexture(c); tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace;
+  const pm = new THREE.PMREMGenerator(renderer); const env = pm.fromEquirectangular(tex).texture; pm.dispose(); tex.dispose();
+  return env;
+}
+function rumboLights(THREE, scene) {
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+  const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(-3, 8, -4); scene.add(d);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.6); d2.position.set(4, 3, 5); scene.add(d2);
+}
+
 (async () => {
   const $ = id => document.getElementById(id);
   const show = (emoji, title, text) => { $('state').hidden = false; $('state').innerHTML = `<div><div style="font-size:42px">${emoji}</div><h1></h1><p></p></div>`; $('state').querySelector('h1').textContent = title; $('state').querySelector('p').textContent = text; };
@@ -165,32 +275,42 @@ function figSvg(fig, col, h, depth) {
   const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   let view = +pref('rv_view', 1);          // 0 general · 1 seguir · 2 conducción 3D
   let sat = pref('rv_sat', '0') === '1';
+  // Noche: lo que elija quien mira o, si no ha elegido, según la hora (de 20:00 a 7:00)
+  const hr = new Date().getHours();
+  let night = pref('rv_night', (hr >= 20 || hr < 7) ? '1' : '0') === '1';
+  const STYLE = n => `https://tiles.openfreemap.org/styles/${n ? 'dark' : 'liberty'}`;
+  document.body.classList.toggle('night', night);
   if (pref('rv_compact', '0') === '1') document.body.classList.add('compact');
 
   let map = null, ready = false, follow = true;
   try {
-    map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/liberty', center: [-3.7, 40.42], zoom: 5, pitch: 0, attributionControl: { compact: true } });
-    map.on('load', () => {
+    window.rumboMap = map = new maplibregl.Map({ container: 'map', style: STYLE(night), center: [-3.7, 40.42], zoom: 5, pitch: 0, attributionControl: { compact: true } });
+    // Capas propias: se vuelven a poner cada vez que cambia el estilo (día/noche)
+    map.on('style.load', () => {
+      if (map.getLayer('route')) return;
       map.addSource('sat', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Imágenes © Esri' });
       map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: sat ? 'visible' : 'none' } }, map.getStyle().layers.find(l => l.type === 'symbol')?.id);
-      map.addSource('trail', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
-      map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
-      map.addLayer({ id: 'trail', type: 'line', source: 'trail', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7C8CA5', 'line-width': 5, 'line-opacity': .75 } });
-      map.addLayer({ id: 'routeCase', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#fff', 'line-width': 11 } });
-      map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1FD17A', 'line-width': 6.5 } });
+      map.addSource('trail', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: trail } } });
+      map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: ended ? [] : routePts } } });
+      map.addLayer({ id: 'trail', type: 'line', source: 'trail', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': night ? '#8FA3C0' : '#7C8CA5', 'line-width': 5, 'line-opacity': .75 } });
+      map.addLayer({ id: 'routeCase', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': night ? '#0B1220' : '#fff', 'line-width': 11 } });
+      map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': (last && last.col) || '#1FD17A', 'line-width': 6.5 } });
       // Edificios en 3D (si el estilo no los trae ya)
       if (!map.getLayer('building-3d') && map.getSource('openmaptiles')) {
         map.addLayer({ id: 'b3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
-          paint: { 'fill-extrusion-color': '#d6d9de', 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
+          paint: { 'fill-extrusion-color': night ? '#2A3140' : '#d6d9de', 'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0], 'fill-extrusion-opacity': .85 } });
       }
+      add3d();
       ready = true; if (last) { drawTrail(); drawRoute(last, true); camera(false); }
     });
+    map.on('error', e => console.warn('Mapa:', e && e.error && e.error.message));
     map.on('dragstart', () => { follow = false; $('bFollow').hidden = false; });
     map.on('rotatestart', e => { if (e.originalEvent) { follow = false; $('bFollow').hidden = false; } });
   } catch (e) { console.warn('Mapa no disponible', e); map = null; }
 
   const viewIcon = () => ['🗺', '🎯', '3D'][view];
-  $('bView').textContent = viewIcon(); $('bSat').textContent = sat ? '🛰' : '🌍';
+  $('bView').textContent = viewIcon(); $('bSat').textContent = sat ? '🛰' : '🌍'; $('bNight').textContent = night ? '☀️' : '🌙';
+  $('bNight').onclick = () => { night = !night; setPref('rv_night', night ? '1' : '0'); $('bNight').textContent = night ? '☀️' : '🌙'; document.body.classList.toggle('night', night); if (map) { ready = false; map.setStyle(STYLE(night)); } };
   $('bView').onclick = () => { view = (view + 1) % 3; setPref('rv_view', view); $('bView').textContent = viewIcon(); follow = true; $('bFollow').hidden = true; refreshCar(); camera(true); };
   $('bSat').onclick = () => { sat = !sat; setPref('rv_sat', sat ? '1' : '0'); $('bSat').textContent = sat ? '🛰' : '🌍'; if (ready) map.setLayoutProperty('sat', 'visibility', sat ? 'visible' : 'none'); };
   $('bFollow').onclick = () => { follow = true; $('bFollow').hidden = true; camera(true); };
@@ -202,10 +322,50 @@ function figSvg(fig, col, h, depth) {
   const seen = new Set(); const imgs = {}; let carUrl = '', carShown = '';
   let trail = [], routeAt = 0, routePts = [], fitted = false;
 
+  // Coche en 3D de verdad (three.js dentro del mapa). Si el navegador no puede, queda la figura plana.
+  let car3d = null, carPos = null, carHead = 0, carKey = '';
+  function add3d() {
+    if (!window.THREE || !map || map.getLayer('car3d')) return;
+    try {
+      map.addLayer({ id: 'car3d', type: 'custom', renderingMode: '3d',
+        onAdd(m, gl) {
+          this.cam = new THREE.Camera(); this.scene = new THREE.Scene(); rumboLights(THREE, this.scene);
+          this.r = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
+          this.r.autoClear = false; this.r.outputColorSpace = THREE.SRGBColorSpace; this.r.toneMapping = THREE.ACESFilmicToneMapping;
+          // Sin mapa de reflejos: dentro del contexto del mapa lo dejaba negro
+          this.scene.add(new THREE.AmbientLight(0xffffff, 0.5)); car3d = window.rumboCarLayer = this; carKey = ''; refreshCar();
+        },
+        render(gl, matrix) {
+          if (!this.model || !carPos) return;
+          const mc = maplibregl.MercatorCoordinate.fromLngLat(carPos, 0);
+          // Tamaño visible parecido en cualquier zoom (como la flecha de los navegadores), nunca menor que el real
+          const mpp = 40075016.686 * Math.cos(carPos[1] * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
+          const k = Math.max(1, 66 * mpp / this.model.userData.length);
+          const s = mc.meterInMercatorCoordinateUnits() * k;
+          const l = new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z).scale(new THREE.Vector3(s, -s, s))
+            .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)).multiply(new THREE.Matrix4().makeRotationY(-carHead * Math.PI / 180));
+          this.cam.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
+          this.r.resetState(); this.r.render(this.scene, this.cam);
+        } });
+    } catch (e) { console.warn('3D no disponible', e); car3d = null; }
+  }
+  function sync3d(f, col) {
+    if (!car3d) return false;
+    const key = f + col;
+    if (key !== carKey) {
+      if (car3d.model) car3d.scene.remove(car3d.model);
+      car3d.model = rumboCar3D(THREE, f, col, { physical: false });
+      // El mapa invierte un eje (el norte va hacia -y): reflejar el coche (simétrico) para que las caras no queden del revés
+      car3d.model.scale.x = -1; car3d.scene.add(car3d.model); carKey = key;
+    }
+    map.triggerRepaint(); return true;
+  }
   const figOf = m => (m.fig && m.fig !== 'foto') ? m.fig : (m.fig === 'foto' && carUrl ? 'foto' : 'berlina');
   function refreshCar() {
     if (!markerEl || !last) return;
     const f = figOf(last);
+    if (f !== 'foto' && sync3d(f, last.col || '#1FD17A')) { markerEl.innerHTML = ''; return; }
+    if (car3d && car3d.model) { car3d.scene.remove(car3d.model); car3d.model = null; carKey = ''; map.triggerRepaint(); }
     markerEl.innerHTML = f === 'foto' ? `<div class="carimg" style="background-image:url(${carUrl})"></div>` : `<div class="car">${figSvg(f, last.col || '#1FD17A', view === 2 ? 74 : 60, view === 2)}</div>`;
     if (marker) { marker.setRotation(f === 'foto' ? 0 : heading); marker.setRotationAlignment(f === 'foto' ? 'viewport' : 'map'); marker.setPitchAlignment(f === 'foto' ? 'viewport' : 'map'); }
   }
@@ -242,8 +402,12 @@ function figSvg(fig, col, h, depth) {
   function moveCar(to) {
     if (!marker) return;
     const from = marker.getLngLat(); const t0 = performance.now();
+    const h0 = carHead, dh = ((heading - carHead + 540) % 360) - 180;
     cancelAnimationFrame(anim);
-    const step = now => { const t = Math.min(1, (now - t0) / 1000); marker.setLngLat([from.lng + (to[0] - from.lng) * t, from.lat + (to[1] - from.lat) * t]); if (t < 1) anim = requestAnimationFrame(step); };
+    const step = now => { const t = Math.min(1, (now - t0) / 1000); const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const p = [from.lng + (to[0] - from.lng) * e, from.lat + (to[1] - from.lat) * e];
+      marker.setLngLat(p); carPos = p; carHead = h0 + dh * e; if (car3d) map.triggerRepaint();
+      if (t < 1) anim = requestAnimationFrame(step); };
     anim = requestAnimationFrame(step);
   }
 
@@ -307,6 +471,7 @@ function figSvg(fig, col, h, depth) {
       if (!marker) {
         markerEl = document.createElement('div');
         marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat(p).addTo(map);
+        carPos = p; carHead = heading;
         refreshCar();
       } else { refreshCar(); moveCar(p); }
       drawRoute(m, first);
