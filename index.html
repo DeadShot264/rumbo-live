@@ -13,6 +13,7 @@
   * { box-sizing:border-box; } [hidden] { display:none !important; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; overflow:hidden; }
   #map { position:fixed; inset:0; }
+  #fx { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; }
   .card { position:fixed; left:12px; right:12px; top:calc(12px + env(safe-area-inset-top)); background:var(--card); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
           border:1px solid var(--line); border-radius:22px; padding:14px 16px; box-shadow:0 18px 40px rgba(0,0,0,.45); z-index:5; max-width:560px; margin:0 auto; transition:opacity .25s, transform .25s; }
   .row { display:flex; align-items:center; gap:12px; }
@@ -52,7 +53,7 @@
 </style>
 </head>
 <body>
-<div id="map"></div>
+<div id="map"></div><canvas id="fx"></canvas>
 <div class="card" id="card" hidden>
   <div class="row">
     <div class="avatar" id="av"></div>
@@ -203,27 +204,83 @@ function rumboCar3D(THREE, type, hex, opts) {
     : [[wsBase, belt], [wsTop, P.roof - 0.07, wsTop + P.rake * 0.35, P.roof - 0.16], [rwTop, P.roof - 0.08], [rwBase, belt, rwTop - 0.1, P.roof - 0.3]];
   sideShape(cab, W * 0.84, 0.1, glass);
   const roofPts = P.box ? [[wsTop + 0.2, P.roof + 0.0], [-hl + 0.14, P.roof + 0.0], [-hl + 0.14, P.roof + 0.06], [wsTop + 0.25, P.roof + 0.06]]
-    : [[wsTop + 0.02, P.roof - 0.01], [rwTop + 0.06, P.roof - 0.01], [rwTop - 0.0, P.roof + 0.05], [wsTop + 0.08, P.roof + 0.05]];
-  parts.body.push(sideShape(roofPts, W * 0.82, 0.05, paint));
-  // Ruedas
+    : [[wsTop - 0.12, P.roof - 0.01], [rwTop + 0.22, P.roof - 0.01], [rwTop + 0.18, P.roof + 0.05], [wsTop - 0.08, P.roof + 0.05]];
+  parts.body.push(sideShape(roofPts, W * 0.78, 0.05, paint));
+  const box = (w, h, d, mat, x, y, z, rx) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); if (rx) m.rotation.x = rx; g.add(m); return m; };
+  const cyl = (rt, rb, h, mat, seg) => new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 24), mat);
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xd8dde3, metalness: 1, roughness: 0.18 });
+  const plate = new THREE.MeshStandardMaterial({ color: 0xf2f4f7, roughness: 0.5 });
+  const caliper = new THREE.MeshStandardMaterial({ color: type === 'deportivo' ? 0xd62828 : 0x50555c, roughness: 0.5 });
+  const amber = new THREE.MeshStandardMaterial({ color: 0xffa31a, emissive: 0xff8a00, emissiveIntensity: 0.6 });
+  const drl = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe8f2ff, emissiveIntensity: 2.2 });
+  // Ruedas: neumático con flanco redondeado, llanta de radios y pinza de freno
+  const spokes = { deportivo: 10, berlina: 5, compacto: 6, suv: 6, furgoneta: 8 }[type] || 5;
   [[fA, 1], [fA, -1], [rA, 1], [rA, -1]].forEach(([z, s]) => {
-    const tyre = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.26, 28), rubber); tyre.rotation.z = Math.PI / 2;
-    tyre.position.set(s * (W / 2 - 0.15), r, -z); g.add(tyre);
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.62, r * 0.62, 0.02, 24), rim); hub.rotation.z = Math.PI / 2;
-    hub.position.set(s * (W / 2 - 0.015), r, -z); g.add(hub);
+    const wg = new THREE.Group(); wg.position.set(s * (W / 2 - 0.15), r, -z); g.add(wg);
+    const tyre = cyl(r, r, 0.24, rubber, 32); tyre.rotation.z = Math.PI / 2; wg.add(tyre);
+    const wall = new THREE.Mesh(new THREE.TorusGeometry(r - 0.045, 0.045, 10, 32), rubber); wall.rotation.y = Math.PI / 2; wall.position.x = s * 0.11; wg.add(wall);
+    const rr = r * (type === 'deportivo' ? 0.74 : 0.66);
+    const dish = cyl(rr, rr, 0.03, trim, 28); dish.rotation.z = Math.PI / 2; dish.position.x = s * 0.115; wg.add(dish);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.018, 8, 32), chrome); lip.rotation.y = Math.PI / 2; lip.position.x = s * 0.13; wg.add(lip);
+    for (let k = 0; k < spokes; k++) {
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.03, rr * 1.9, type === 'deportivo' ? 0.035 : 0.06), rim);
+      sp.position.x = s * 0.125; sp.rotation.x = k * Math.PI / spokes; wg.add(sp);
+    }
+    const hubc = cyl(0.06, 0.06, 0.04, chrome, 16); hubc.rotation.z = Math.PI / 2; hubc.position.x = s * 0.13; wg.add(hubc);
+    const cal = box(0.05, 0.16, 0.1, caliper, 0, 0, 0); g.remove(cal); cal.position.set(s * 0.08, rr * 0.55, 0.08); wg.add(cal);
   });
-  // Faros, pilotos, retrovisores, parrilla
-  const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+  // Frontal: faros con luz diurna, parrilla, toma de aire baja, antinieblas y matrícula
+  const front = -(hl + 0.1), back = hl + 0.1; // la carrocería sobresale por el redondeo
+  const lampW = { deportivo: 0.5, berlina: 0.46, compacto: 0.36, suv: 0.42, furgoneta: 0.34 }[type];
+  const lampH = { deportivo: 0.07, berlina: 0.09, compacto: 0.13, suv: 0.12, furgoneta: 0.16 }[type];
   const fy = P.box ? belt - 0.25 : belt - 0.16;
   [-1, 1].forEach(s => {
-    box(0.42, 0.1, 0.12, head, s * (W / 2 - 0.33), fy, -(hl - 0.04));
-    box(0.4, 0.09, 0.08, tail, s * (W / 2 - 0.3), P.box ? belt - 0.2 : belt - 0.12, hl - 0.02 - (P.box ? 0 : 0.02));
-    const mir = box(0.22, 0.12, 0.12, paint, s * (W / 2 + 0.06), belt + 0.08, -(wsBase - 0.15)); parts.body.push(mir);
+    box(lampW, lampH, 0.1, head, s * (W / 2 - 0.12 - lampW / 2), fy, front - 0.02);
+    box(lampW * 0.95, 0.025, 0.11, drl, s * (W / 2 - 0.12 - lampW / 2), fy + lampH / 2 + 0.005, front - 0.025);
+    box(0.08, 0.04, 0.06, amber, s * (W / 2 - 0.1), fy - lampH * 0.2, front - 0.01);
+    box(0.12, 0.06, 0.05, drl, s * (W / 2 - 0.28), y0 + 0.2, front - 0.03);
   });
-  if (!P.box) box(W * 0.62, 0.05, 0.06, tail, 0, belt - 0.12, hl - 0.03);
-  box(W * 0.42, 0.14, 0.06, trim, 0, y0 + 0.28, -(hl + 0.01));
-  if (P.rails) [-1, 1].forEach(s => box(0.05, 0.05, (wsTop - rwTop) * 0.9, trim, s * W * 0.33, P.roof + 0.04, -(wsTop + rwTop) / 2));
-  if (P.wing) { box(W * 0.9, 0.03, 0.22, trim, 0, belt + 0.2, hl - 0.18); [-1, 1].forEach(s => box(0.04, 0.18, 0.1, trim, s * W * 0.32, belt + 0.1, hl - 0.18)); }
+  const grillW = { deportivo: W * 0.36, berlina: W * 0.42, compacto: W * 0.34, suv: W * 0.52, furgoneta: W * 0.5 }[type];
+  const grillH = { deportivo: 0.08, berlina: 0.16, compacto: 0.12, suv: 0.26, furgoneta: 0.22 }[type];
+  box(grillW, grillH, 0.06, trim, 0, fy - 0.02, front - 0.03);
+  for (let k = 1; k < 4; k++) box(grillW * 0.94, 0.012, 0.065, chrome, 0, fy - 0.02 - grillH / 2 + k * grillH / 4, front - 0.035);
+  box(W * (type === 'deportivo' ? 0.72 : 0.55), type === 'deportivo' ? 0.14 : 0.1, 0.06, trim, 0, y0 + 0.24, front - 0.03);
+  box(0.52, 0.11, 0.02, plate, 0, y0 + 0.36, front - 0.07);
+  // Trasera: pilotos (barra de lado a lado o verticales), matrícula, escapes y difusor
+  const ty = P.box ? belt - 0.1 : belt - 0.12;
+  [-1, 1].forEach(s => {
+    if (P.box) box(0.12, 0.42, 0.06, tail, s * (W / 2 - 0.1), ty - 0.1, back);
+    else box(0.42, 0.1, 0.08, tail, s * (W / 2 - 0.3), ty, back - 0.02);
+  });
+  if (!P.box) box(W * 0.6, 0.04, 0.06, tail, 0, ty + 0.01, back - 0.03);
+  if (type === 'suv' || type === 'compacto') box(W * 0.5, 0.04, 0.05, tail, 0, P.roof - 0.02, -rwTop + 0.08);
+  box(0.52, 0.11, 0.02, plate, 0, y0 + 0.42, back + 0.03);
+  box(W * 0.7, 0.1, 0.06, trim, 0, y0 + 0.14, back - 0.01);
+  (type === 'deportivo' ? [-0.42, -0.3, 0.3, 0.42] : type === 'furgoneta' ? [] : [-0.4, 0.4]).forEach(x => {
+    const ex = cyl(0.045, 0.045, 0.14, chrome, 14); ex.rotation.x = Math.PI / 2; ex.position.set(x, y0 + 0.12, back); g.add(ex);
+  });
+  // Laterales: faldón, líneas de las puertas, manetas y retrovisores
+  const doorZ = P.box ? [wsBase - 0.65, wsBase - 1.95] : type === 'deportivo' || type === 'compacto' && false ? [wsBase - 1.25] : [wsBase - 0.95, (wsBase + rwBase) / 2 - 0.35];
+  [-1, 1].forEach(s => {
+    box(0.04, 0.1, (fA - rA) - 2 * ar - 0.05, trim, s * (W / 2 + 0.005), y0 + 0.13, -(fA + rA) / 2);
+    doorZ.forEach(dz => box(0.012, belt - y0 - 0.2, 0.012, trim, s * (W / 2 + 0.008), (belt + y0) / 2 + 0.06, -dz));
+    [wsBase - 0.65, P.box ? wsBase - 1.4 : (wsBase + rwBase) / 2 - 0.1].forEach(hz => box(0.025, 0.035, 0.14, chrome, s * (W / 2 + 0.012), belt - 0.12, -hz));
+    const arm = box(0.12, 0.04, 0.06, trim, s * (W / 2 + 0.02), belt + 0.05, -(wsBase - 0.12));
+    const mir = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), paint); mir.scale.set(1.1, 0.75, 0.6);
+    mir.position.set(s * (W / 2 + 0.12), belt + 0.1, -(wsBase - 0.16)); g.add(mir); parts.body.push(mir);
+    // Marcos negros de las ventanillas (pilar central)
+    box(0.02, (P.roof - belt) * 0.8, 0.08, trim, s * (W * 0.42 + 0.1), (P.roof + belt) / 2 - 0.02, -(P.box ? wsBase - 0.65 : (wsBase - P.rake * 0.5 + rwTop) / 2));
+  });
+  // Extras de cada tipo
+  if (P.rails) [-1, 1].forEach(s => { box(0.05, 0.05, (wsTop - rwTop) * 0.9, chrome, s * W * 0.34, P.roof + 0.1, -(wsTop + rwTop) / 2);
+    [wsTop - 0.1, rwTop + 0.1].forEach(z => box(0.05, 0.08, 0.06, trim, s * W * 0.34, P.roof + 0.06, -z)); });
+  if (type === 'suv') [-1, 1].forEach(s => [fA, rA].forEach(z => {
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(r + 0.07, 0.035, 8, 24, Math.PI), trim); arch.rotation.y = Math.PI / 2; arch.position.set(s * (W / 2 + 0.01), r, -z); g.add(arch); }));
+  if (P.wing) { box(W * 0.92, 0.03, 0.26, trim, 0, belt + 0.24, back - 0.16); [-1, 1].forEach(s => box(0.04, 0.2, 0.12, trim, s * W * 0.32, belt + 0.12, back - 0.18));
+    box(W * 0.6, 0.02, 0.5, trim, 0, belt - 0.06, -(wsBase + 0.45)); }
+  if (type === 'compacto') box(W * 0.7, 0.03, 0.22, paint, 0, P.roof + 0.0, -rwTop + 0.05);
+  if (type === 'furgoneta') { [-1, 1].forEach(s => box(0.01, 0.01, 2.6, trim, s * (W / 2 + 0.006), belt + 0.4, -(wsBase - 2.2)));
+    box(0.012, P.roof - y0 - 0.3, 0.02, trim, 0, (P.roof + y0) / 2, back + 0.01); }
   // Sombra suave en el suelo
   if (opts.shadow !== false) {
     const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
@@ -253,6 +310,117 @@ function rumboLights(THREE, scene) {
   const d2 = new THREE.DirectionalLight(0xffffff, 0.6); d2.position.set(4, 3, 5); scene.add(d2);
 }
 
+
+// Cielo y tiempo sobre el mapa: estrellas y luna de noche, nubes, lluvia, nieve, tormenta y niebla
+const SkyFx = (() => {
+  let cv, ctx, W = 0, H = 0, dpr = 1, wx = { c: 'clear', d: 1 }, horizon = -1, raf = 0, drops = [], clouds = [], stars = [], flash = 0, lastT = 0;
+  function init() {
+    cv = document.getElementById('fx'); ctx = cv.getContext('2d'); resize(); addEventListener('resize', resize);
+    for (let i = 0; i < 140; i++) stars.push({ x: Math.random(), y: Math.random(), r: Math.random() * 1.3 + .3, t: Math.random() * 6.28 });
+    for (let i = 0; i < 7; i++) clouds.push({ x: Math.random() * 1.4 - .2, y: Math.random(), s: .6 + Math.random() * .9, v: .004 + Math.random() * .008 });
+    raf = requestAnimationFrame(loop);
+  }
+  function resize() { dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; }
+  function setWeather(w) {
+    wx = w; const n = w.c === 'rain' ? 220 : w.c === 'storm' ? 320 : w.c === 'snow' ? 160 : w.c === 'drizzle' ? 110 : 0;
+    while (drops.length < n) drops.push({ x: Math.random(), y: Math.random(), z: .4 + Math.random() * .6 }); drops.length = n;
+  }
+  function setHorizon(y) { horizon = y; }
+  // Fase de la luna (0 = nueva, 0.5 = llena)
+  function moonPhase(d) { const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14); return (((d - ref) / 86400000) % syn + syn) % syn / syn; }
+  function cloud(x, y, s, col) {
+    ctx.fillStyle = col; ctx.beginPath();
+    [[0, 0, 26], [24, -10, 30], [52, 0, 24], [20, 8, 26], [40, 10, 22]].forEach(([dx, dy, r]) => { ctx.moveTo(x + dx * s + r * s, y + dy * s); ctx.arc(x + dx * s, y + dy * s, r * s, 0, 6.29); });
+    ctx.fill();
+  }
+  function loop(t) {
+    raf = requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (t - lastT) / 1000 || 0); lastT = t;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    const night = !wx.d, hz = horizon;
+    const cloudy = ['cloudy', 'rain', 'storm', 'drizzle', 'snow', 'fog'].includes(wx.c), partly = wx.c === 'partly';
+    // Cielo (solo se ve con el mapa inclinado, por encima del horizonte)
+    if (hz > 4) {
+      const g = ctx.createLinearGradient(0, 0, 0, hz);
+      if (night) { g.addColorStop(0, cloudy ? '#151a24' : '#070b1a'); g.addColorStop(1, cloudy ? '#2a3140' : '#1d2a4a'); }
+      else if (cloudy) { g.addColorStop(0, wx.c === 'storm' ? '#4a515c' : '#8d99a8'); g.addColorStop(1, '#c9d1da'); }
+      else { g.addColorStop(0, '#2f7fe0'); g.addColorStop(.7, '#7fb8f5'); g.addColorStop(1, '#d6ebff'); }
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, hz + 1);
+      if (night && !cloudy) {
+        stars.forEach(st => { const a = .45 + .45 * Math.sin(t / 900 + st.t); ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.beginPath(); ctx.arc(st.x * W, st.y * hz * .92, st.r, 0, 6.29); ctx.fill(); });
+        // Luna con su fase real
+        const mx = W * .74, my = Math.max(26, hz - 85), mr = 15, ph = moonPhase(Date.now());
+        ctx.save(); ctx.shadowColor = 'rgba(255,248,220,.8)'; ctx.shadowBlur = 24; ctx.fillStyle = '#f4f1e3'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.29); ctx.fill(); ctx.restore();
+        const k = Math.cos(ph * 2 * Math.PI); ctx.fillStyle = '#0b1328'; ctx.beginPath();
+        if (ph < .5) { ctx.arc(mx, my, mr + .5, Math.PI / 2, -Math.PI / 2); ctx.ellipse(mx, my, Math.abs(k) * mr, mr + .5, 0, -Math.PI / 2, Math.PI / 2, k < 0); }
+        else { ctx.arc(mx, my, mr + .5, -Math.PI / 2, Math.PI / 2); ctx.ellipse(mx, my, Math.abs(k) * mr, mr + .5, 0, Math.PI / 2, -Math.PI / 2, k < 0); }
+        if (ph > .03 && ph < .97) ctx.fill();
+      } else if (!night && !cloudy) {
+        const sx = W * .22, sy = Math.max(30, hz - 95); const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 70);
+        sg.addColorStop(0, 'rgba(255,250,220,1)'); sg.addColorStop(.25, 'rgba(255,240,180,.8)'); sg.addColorStop(1, 'rgba(255,240,180,0)'); ctx.fillStyle = sg; ctx.fillRect(sx - 70, sy - 70, 140, 140);
+      }
+      if (cloudy || partly) {
+        const col = night ? 'rgba(70,78,95,.85)' : wx.c === 'storm' ? 'rgba(90,96,108,.9)' : cloudy ? 'rgba(235,238,242,.85)' : 'rgba(255,255,255,.92)';
+        clouds.slice(0, partly ? 4 : 7).forEach(c => { c.x += c.v * dt; if (c.x > 1.25) c.x = -.3; cloud(c.x * W, 14 + c.y * Math.max(10, hz - 40), c.s * Math.max(.6, Math.min(1.4, hz / 160)), col); });
+      }
+      // Bruma en el horizonte para fundir cielo y mapa
+      const hg = ctx.createLinearGradient(0, hz - 30, 0, hz + 24); const hc = night ? '20,28,48' : cloudy ? '200,207,216' : '214,235,255';
+      hg.addColorStop(0, `rgba(${hc},0)`); hg.addColorStop(.55, `rgba(${hc},.9)`); hg.addColorStop(1, `rgba(${hc},0)`); ctx.fillStyle = hg; ctx.fillRect(0, hz - 30, W, 54);
+    }
+    // Lluvia, nieve y tormenta sobre todo el mapa
+    if (drops.length) {
+      const snow = wx.c === 'snow';
+      ctx.strokeStyle = night ? 'rgba(190,205,230,.45)' : 'rgba(120,140,170,.5)'; ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      drops.forEach(d => {
+        if (snow) { d.y += dt * (.05 + .06 * d.z); d.x += Math.sin(t / 1300 + d.z * 9) * dt * .02; }
+        else { d.y += dt * (1.1 + d.z); d.x += dt * .12; }
+        if (d.y > 1) { d.y -= 1.05; d.x = Math.random(); } if (d.x > 1) d.x -= 1;
+        const x = d.x * W, y = d.y * H;
+        if (snow) { ctx.moveTo(x + 2 * d.z, y); ctx.arc(x, y, 1.2 + 1.6 * d.z, 0, 6.29); }
+        else { ctx.moveTo(x, y); ctx.lineTo(x - 2.5 * d.z, y - 14 * d.z); }
+      });
+      snow ? ctx.fill() : ctx.stroke();
+    }
+    if (wx.c === 'storm') { if (Math.random() < .004) flash = 1; if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash * .35})`; ctx.fillRect(0, 0, W, H); flash -= dt * 3; } }
+    if (wx.c === 'fog') { const fg = ctx.createLinearGradient(0, Math.max(0, hz), 0, H); fg.addColorStop(0, 'rgba(220,224,230,.55)'); fg.addColorStop(1, 'rgba(220,224,230,.15)'); ctx.fillStyle = fg; ctx.fillRect(0, 0, W, H); }
+  }
+  return { init, setWeather, setHorizon };
+})();
+// Día o noche por la posición del sol (cuando su móvil no manda el tiempo)
+function sunUp(lat, lng, t) {
+  const d = new Date(t), day = Math.floor((d - Date.UTC(d.getUTCFullYear(), 0, 0)) / 864e5);
+  const decl = -23.44 * Math.cos(2 * Math.PI / 365 * (day + 10)) * Math.PI / 180;
+  const hrs = d.getUTCHours() + d.getUTCMinutes() / 60 + lng / 15;
+  const ha = (hrs - 12) * 15 * Math.PI / 180, la = lat * Math.PI / 180;
+  const alt = Math.asin(Math.sin(la) * Math.sin(decl) + Math.cos(la) * Math.cos(decl) * Math.cos(ha));
+  return alt > -0.05;
+}
+// Colores de noche parecidos a los de Google Maps sobre el estilo normal (las carreteras se distinguen bien)
+function nightify(map) {
+  const st = map.getStyle(); if (!st) return;
+  st.layers.forEach(l => {
+    const id = l.id, set = (k, v) => { try { map.setPaintProperty(id, k, v); } catch (e) {} };
+    if (l.type === 'background') set('background-color', '#242f3e');
+    else if (l.type === 'fill') {
+      if (/water/.test(id)) set('fill-color', '#17263c');
+      else if (/park|wood|grass|forest|landcover|scrub|wetland/.test(id)) set('fill-color', '#22343a');
+      else if (/building/.test(id)) set('fill-color', '#2b3544');
+      else set('fill-color', '#273243');
+      set('fill-outline-color', 'rgba(0,0,0,0)');
+    } else if (l.type === 'line') {
+      if (/water|river|stream|canal/.test(id)) set('line-color', '#17263c');
+      else if (/casing/.test(id)) set('line-color', /motorway|trunk/.test(id) ? '#1f2835' : '#212a37');
+      else if (/motorway|trunk/.test(id)) set('line-color', '#746855');
+      else if (/primary|secondary/.test(id)) set('line-color', '#4d5a6b');
+      else if (/road|street|highway|bridge|tunnel|path|minor|service|track/.test(id)) set('line-color', '#38414e');
+      else if (/rail/.test(id)) set('line-color', '#2f3948');
+      else if (/boundary|admin/.test(id)) set('line-color', '#4b6878');
+    } else if (l.type === 'symbol') {
+      set('text-color', /poi|place-city|place-town/.test(id) ? '#d59563' : '#9ca5b3'); set('text-halo-color', '#1b2230');
+    } else if (l.type === 'fill-extrusion') { set('fill-extrusion-color', '#323d4f'); }
+  });
+}
 (async () => {
   const $ = id => document.getElementById(id);
   const show = (emoji, title, text) => { $('state').hidden = false; $('state').innerHTML = `<div><div style="font-size:42px">${emoji}</div><h1></h1><p></p></div>`; $('state').querySelector('h1').textContent = title; $('state').querySelector('p').textContent = text; };
@@ -278,16 +446,20 @@ function rumboLights(THREE, scene) {
   // Noche: lo que elija quien mira o, si no ha elegido, según la hora (de 20:00 a 7:00)
   const hr = new Date().getHours();
   let night = pref('rv_night', (hr >= 20 || hr < 7) ? '1' : '0') === '1';
-  const STYLE = n => `https://tiles.openfreemap.org/styles/${n ? 'dark' : 'liberty'}`;
+  let manualNight = pref('rv_night', '') !== '';
+  const STYLE = n => 'https://tiles.openfreemap.org/styles/liberty';
   document.body.classList.toggle('night', night);
   if (pref('rv_compact', '0') === '1') document.body.classList.add('compact');
 
   let map = null, ready = false, follow = true;
   try {
-    window.rumboMap = map = new maplibregl.Map({ container: 'map', style: STYLE(night), center: [-3.7, 40.42], zoom: 5, pitch: 0, attributionControl: { compact: true } });
+    window.rumboMap = map = new maplibregl.Map({ container: 'map', style: STYLE(night), center: [-3.7, 40.42], zoom: 5, pitch: 0, maxPitch: 85, attributionControl: { compact: true } });
+    SkyFx.init();
+    map.on('render', () => SkyFx.setHorizon((map.transform.centerPoint ? map.transform.centerPoint.y : map.transform.height / 2) - map.transform.getHorizon()));
     // Capas propias: se vuelven a poner cada vez que cambia el estilo (día/noche)
     map.on('style.load', () => {
       if (map.getLayer('route')) return;
+      if (night) nightify(map);
       map.addSource('sat', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: 'Imágenes © Esri' });
       map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: sat ? 'visible' : 'none' } }, map.getStyle().layers.find(l => l.type === 'symbol')?.id);
       map.addSource('trail', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: trail } } });
@@ -295,6 +467,8 @@ function rumboLights(THREE, scene) {
       map.addLayer({ id: 'trail', type: 'line', source: 'trail', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': night ? '#8FA3C0' : '#7C8CA5', 'line-width': 5, 'line-opacity': .75 } });
       map.addLayer({ id: 'routeCase', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': night ? '#0B1220' : '#fff', 'line-width': 11 } });
       map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': (last && last.col) || '#1FD17A', 'line-width': 6.5 } });
+      map.addSource('jams', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'jams', type: 'line', source: 'jams', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': 6.5 } });
       // Edificios en 3D (si el estilo no los trae ya)
       if (!map.getLayer('building-3d') && map.getSource('openmaptiles')) {
         map.addLayer({ id: 'b3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
@@ -310,7 +484,7 @@ function rumboLights(THREE, scene) {
 
   const viewIcon = () => ['🗺', '🎯', '3D'][view];
   $('bView').textContent = viewIcon(); $('bSat').textContent = sat ? '🛰' : '🌍'; $('bNight').textContent = night ? '☀️' : '🌙';
-  $('bNight').onclick = () => { night = !night; setPref('rv_night', night ? '1' : '0'); $('bNight').textContent = night ? '☀️' : '🌙'; document.body.classList.toggle('night', night); if (map) { ready = false; map.setStyle(STYLE(night)); } };
+  $('bNight').onclick = () => { night = !night; setPref('rv_night', night ? '1' : '0'); $('bNight').textContent = night ? '☀️' : '🌙'; document.body.classList.toggle('night', night); manualNight = true; if (map) { ready = false; map.setStyle(STYLE(night), { diff: false }); } };
   $('bView').onclick = () => { view = (view + 1) % 3; setPref('rv_view', view); $('bView').textContent = viewIcon(); follow = true; $('bFollow').hidden = true; refreshCar(); camera(true); };
   $('bSat').onclick = () => { sat = !sat; setPref('rv_sat', sat ? '1' : '0'); $('bSat').textContent = sat ? '🛰' : '🌍'; if (ready) map.setLayoutProperty('sat', 'visibility', sat ? 'visible' : 'none'); };
   $('bFollow').onclick = () => { follow = true; $('bFollow').hidden = true; camera(true); };
@@ -340,7 +514,7 @@ function rumboLights(THREE, scene) {
           const mc = maplibregl.MercatorCoordinate.fromLngLat(carPos, 0);
           // Tamaño visible parecido en cualquier zoom (como la flecha de los navegadores), nunca menor que el real
           const mpp = 40075016.686 * Math.cos(carPos[1] * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
-          const k = Math.max(1, 66 * mpp / this.model.userData.length);
+          const k = Math.max(1, 84 * mpp / this.model.userData.length);
           const s = mc.meterInMercatorCoordinateUnits() * k;
           const l = new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z).scale(new THREE.Vector3(s, -s, s))
             .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)).multiply(new THREE.Matrix4().makeRotationY(-carHead * Math.PI / 180));
@@ -377,15 +551,38 @@ function rumboLights(THREE, scene) {
       if (pts.length > 1) { const b = pts.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(pts[0], pts[0]));
         map.fitBounds(b, { padding: { top: 200, bottom: 140, left: 40, right: 80 }, pitch: 0, bearing: 0, duration: animate ? 1000 : 0, maxZoom: 16 }); }
       else map.easeTo({ center: c, zoom: 15, pitch: 0, bearing: 0, duration: animate ? 1000 : 0 });
-    } else if (view === 2) map.easeTo({ center: c, zoom: 17.4, pitch: 62, bearing: heading, duration: animate ? 1200 : 900, padding: { top: 200, bottom: 60 } });
+    } else if (view === 2) map.easeTo({ center: c, zoom: 18, pitch: 80, bearing: heading, duration: animate ? 1200 : 900, padding: { top: 260, bottom: 0 } });
     else map.easeTo({ center: c, zoom: Math.max(14, Math.min(map.getPitch() > 5 ? 16 : map.getZoom() < 6 ? 16 : map.getZoom(), 18)), pitch: 0, bearing: 0, duration: animate ? 1000 : 900, padding: { top: 120, bottom: 80 } });
   }
   function resetSession() { trail = []; routePts = []; fitted = false; routeAt = 0; ended = null; last = null; if (ready) { drawTrail(); map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }); } if (destMarker) { destMarker.remove(); destMarker = null; } }
   function drawTrail() { if (ready) map.getSource('trail').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: trail } }); }
+  function decodePoly(str) {
+    const out = []; let i = 0, lat = 0, lng = 0;
+    while (i < str.length) {
+      let r = 0, sh = 0, b; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32 && i < str.length);
+      lat += (r & 1) ? ~(r >> 1) : (r >> 1); r = 0; sh = 0;
+      do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32 && i < str.length);
+      lng += (r & 1) ? ~(r >> 1) : (r >> 1); out.push([lng / 1e5, lat / 1e5]);
+    }
+    return out;
+  }
   async function drawRoute(m, force) {
     if (!map || m.dla == null || ended) return;
     if (!destMarker) { const el = document.createElement('div'); el.className = 'dest'; destMarker = new maplibregl.Marker({ element: el }).setLngLat([m.dlo, m.dla]).addTo(map); }
     else destMarker.setLngLat([m.dlo, m.dla]);
+    // Ruta de Google enviada por su móvil (con el tráfico); si no la hay, se calcula aquí con OSRM
+    if (m.rp) {
+      const pts = decodePoly(m.rp);
+      routePts = pts; routeAt = Date.now();
+      const jams = (m.rj || '').split(';').map(x => x.split(',')).filter(q => q.length === 3 && +q[1] > +q[0] && +q[1] < pts.length)
+        .map(q => ({ type: 'Feature', properties: { c: q[2] === 'J' ? '#E5484D' : '#F5A524' }, geometry: { type: 'LineString', coordinates: pts.slice(+q[0], +q[1] + 1) } }));
+      if (ready) {
+        map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts } }); map.setPaintProperty('route', 'line-color', m.col || '#1FD17A');
+        map.getSource('jams').setData({ type: 'FeatureCollection', features: jams });
+      }
+      if (!fitted && view === 0) { fitted = true; camera(true); }
+      return;
+    }
     if (!force && Date.now() - routeAt < 90000) return;
     routeAt = Date.now();
     let pts = [[m.lo, m.la], [m.dlo, m.dla]];
@@ -424,10 +621,11 @@ function rumboLights(THREE, scene) {
     else { av.className = 'avatar'; av.style.backgroundImage = ''; av.innerHTML = figSvg(f, m.col || '#1FD17A', 46); }
     $('sp').textContent = m.sp != null ? Math.round(m.sp) : '—';
     let etaTxt = null;
-    if (m.eta != null && !ended) { etaTxt = m.eta < 1 ? 'ya' : (m.eta < 60 ? `${Math.round(m.eta)} min` : `${Math.floor(m.eta / 60)} h ${Math.round(m.eta % 60)}`); $('eta').textContent = etaTxt; $('etal').textContent = m.km != null ? `quedan ${m.km.toFixed(m.km < 10 ? 1 : 0)} km` + (m.tr ? ' · con tráfico' : '') : 'llegada'; }
+    if (m.eta != null && !ended) { etaTxt = m.eta < 1 ? 'ya' : (m.eta < 60 ? `${Math.round(m.eta)} min` : `${Math.floor(m.eta / 60)} h ${Math.round(m.eta % 60)}`); $('eta').textContent = etaTxt; const arr = hhmm(m.t + m.eta * 60000);
+      $('etal').textContent = [`llega ${arr}`, m.dl ? `+${m.dl} min tráfico` : (m.tr ? 'sin atascos' : (m.km != null ? `${m.km.toFixed(m.km < 10 ? 1 : 0)} km` : null))].filter(Boolean).join(' · '); }
     else { $('eta').textContent = '—'; $('etal').textContent = 'llegada'; }
     $('ago').textContent = fmtAgo(m.t);
-    $('miniInfo').textContent = [m.sp != null ? `${Math.round(m.sp)} km/h` : null, etaTxt ? `llega en ${etaTxt}` : null, ended === 'arrived' ? 'ha llegado' : null].filter(Boolean).map(s => ' · ' + s).join('');
+    $('miniInfo').textContent = [m.sp != null ? `${Math.round(m.sp)} km/h` : null, etaTxt ? `llega ${hhmm(m.t + m.eta * 60000)} (${etaTxt})` : null, ended === 'arrived' ? 'ha llegado' : null].filter(Boolean).map(s => ' · ' + s).join('');
     const stale = Date.now() - m.t > 3 * 60 * 1000;
     const pill = $('pill');
     if (ended) { pill.className = 'pill off'; $('pillt').textContent = ended === 'arrived' ? 'HA LLEGADO' : 'FINALIZADO'; }
@@ -437,6 +635,7 @@ function rumboLights(THREE, scene) {
     if (ended === 'arrived') parts.push(`Ha llegado a las ${hhmm(m.t)}`);
     else if (ended) parts.push('Ha dejado de compartir su ubicación');
     else { if (m.d) parts.push(`Hacia ${m.d}`); parts.push(m.a ? 'hasta que llegue' : `hasta las ${hhmm(m.u)}`); }
+    if (m.wx && !ended) { const e = { clear: m.wx.d ? '☀️' : '🌙', partly: m.wx.d ? '⛅' : '☁️', cloudy: '☁️', drizzle: '🌦', rain: '🌧', storm: '⛈', snow: '❄️', fog: '🌫' }[m.wx.c] || ''; parts.unshift(e + (m.wx.tc != null ? ` ${m.wx.tc}°` : '')); }
     $('sub').textContent = parts.join(' · ');
     const ll = `${m.la.toFixed(6)},${m.lo.toFixed(6)}`;
     $('open').href = `https://www.google.com/maps/search/?api=1&query=${ll}`; $('go').href = `https://www.google.com/maps/dir/?api=1&destination=${ll}`;
@@ -465,6 +664,10 @@ function rumboLights(THREE, scene) {
     if (last && m.t < last.t) return;
     ended = null; const first = !last; last = m;
     if (m.hd != null && m.sp > 3) heading = m.hd;
+    // El tiempo que hace donde está (lo manda su móvil); si no, solo día o noche según el sol
+    const day = m.wx ? m.wx.d !== 0 : sunUp(m.la, m.lo, m.t);
+    SkyFx.setWeather({ c: (m.wx && m.wx.c) || 'clear', d: day ? 1 : 0 });
+    if (!manualNight && night === day && map) { night = !day; document.body.classList.toggle('night', night); $('bNight').textContent = night ? '☀️' : '🌙'; ready = false; map.setStyle(STYLE(night), { diff: false }); }
     const p = [m.lo, m.la];
     trail.push(p); drawTrail();
     if (map) try {
