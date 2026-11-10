@@ -73,6 +73,8 @@
   <button class="tool" id="bNight" title="Modo noche">🌙</button>
   <button class="tool" id="bFollow" title="Volver a su coche" hidden>📍</button>
   <button class="tool" id="bCompact" title="Solo el mapa">⤡</button>
+  <button class="tool" id="bGoogle" title="Mapa de Google (tráfico)" hidden>G</button>
+  <button class="tool" id="bClose" title="Cerrar" hidden>✕</button>
 </div>
 <a class="openapp" id="openapp" hidden>Abrir en la app Rumbo</a>
 <div class="bar"><a class="btn" id="open" aria-disabled="true" target="_blank" rel="noopener">Abrir en Maps</a><a class="btn primary" id="go" aria-disabled="true" target="_blank" rel="noopener">Cómo llegar</a></div>
@@ -534,7 +536,12 @@ function nightify(map) {
   const topic = params.get('t'), keyB64 = params.get('k');
   if (!topic || !keyB64 || !/^[A-Za-z0-9_]{6,64}$/.test(topic)) { show('🔗', 'Enlace no válido', 'Pide que te vuelvan a enviar el enlace desde Rumbo.'); return; }
   const unb64 = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
-  if (/Android/i.test(navigator.userAgent)) {
+  // Dentro de la app Rumbo: sin «Abrir en la app», con botones para cerrar y pasar al mapa de Google
+  const inApp = params.get('app') === '1' && window.RumboApp;
+  if (inApp) {
+    $('bGoogle').hidden = false; $('bClose').hidden = false;
+    $('bGoogle').onclick = () => RumboApp.google(); $('bClose').onclick = () => RumboApp.close();
+  } else if (/Android/i.test(navigator.userAgent)) {
     const a = $('openapp');
     a.href = `intent://live?t=${topic}&k=${keyB64}#Intent;scheme=rumbo;package=es.kmapp;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
     a.hidden = false;
@@ -873,7 +880,7 @@ function nightify(map) {
     try { localStorage.setItem('rumbo_viewer', viewer); } catch (e) {}
   }
   async function beat() {
-    if (document.hidden) return;
+    if (document.hidden || inApp) return;   // en la app ya avisa ella (con tu nombre)
     try {
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify({ v: viewer, t: Date.now() }))));
