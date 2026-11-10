@@ -650,7 +650,7 @@ function nightify(map) {
   }
   function camera(animate) {
     if (!map || !last) return;
-    const c = [last.lo, last.la];
+    const c = (view !== 0 && !ended && carPos) ? carPos : [last.lo, last.la];
     if (view === 0 || ended) {
       const pts = trail.concat(routePts).concat([c]);
       if (pts.length > 1) { const b = pts.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(pts[0], pts[0]));
@@ -701,14 +701,21 @@ function nightify(map) {
   }
   // El coche se desliza suavemente entre posiciones
   let anim = null;
-  function moveCar(to) {
+  function moveCar(to, dur) {
     if (!marker) return;
-    const from = marker.getLngLat(); const t0 = performance.now();
+    const from = marker.getLngLat(); const t0 = performance.now(); let drawn = 0;
     const h0 = carHead, dh = ((heading - carHead + 540) % 360) - 180;
     cancelAnimationFrame(anim);
-    const step = now => { const t = Math.min(1, (now - t0) / 1000); const e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const p = [from.lng + (to[0] - from.lng) * e, from.lat + (to[1] - from.lat) * e];
-      marker.setLngLat(p); carPos = p; carHead = h0 + dh * e; if (car3d) map.triggerRepaint();
+    // El coche avanza seguido durante lo que tardó en llegar el aviso (15–60 s) en vez de dar un salto cada vez,
+    // y la cámara va con él. A unas 30 imágenes por segundo para no gastar batería de más.
+    const step = now => {
+      if (now - drawn < 30) { anim = requestAnimationFrame(step); return; }
+      drawn = now;
+      const t = Math.min(1, (now - t0) / dur), ht = Math.min(1, (now - t0) / 1200);
+      const p = [from.lng + (to[0] - from.lng) * t, from.lat + (to[1] - from.lat) * t];
+      marker.setLngLat(p); carPos = p; carHead = h0 + dh * ht;
+      if (follow && !ended && view !== 0 && !map.isEasing()) map.jumpTo(view === 2 ? { center: p, bearing: carHead } : { center: p });
+      else if (car3d) map.triggerRepaint();
       if (t < 1) anim = requestAnimationFrame(step); };
     anim = requestAnimationFrame(step);
   }
@@ -731,7 +738,7 @@ function nightify(map) {
     else { $('eta').textContent = '—'; $('etal').textContent = 'llegada'; }
     $('ago').textContent = fmtAgo(m.t);
     $('miniInfo').textContent = [m.sp != null ? `${Math.round(m.sp)} km/h` : null, etaTxt ? `llega ${hhmm(m.t + m.eta * 60000)} (${etaTxt})` : null, ended === 'arrived' ? 'ha llegado' : null].filter(Boolean).map(s => ' · ' + s).join('');
-    const stale = Date.now() - m.t > 3 * 60 * 1000;
+    const stale = Date.now() - m.t > 4 * 60 * 1000;
     const pill = $('pill');
     if (ended) { pill.className = 'pill off'; $('pillt').textContent = ended === 'arrived' ? 'HA LLEGADO' : 'FINALIZADO'; }
     else if (stale) { pill.className = 'pill off'; $('pillt').textContent = 'SIN SEÑAL'; }
@@ -767,7 +774,7 @@ function nightify(map) {
     if (m.end) { ended = m.end; if (ready) map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }); render(); camera(true); return; }
     if (typeof m.la !== 'number') return;
     if (last && m.t < last.t) return;
-    ended = null; const first = !last; last = m;
+    ended = null; const first = !last, prev = last; last = m;
     if (m.hd != null && m.sp > 3) heading = m.hd;
     // El tiempo que hace donde está (lo manda su móvil); si no, solo día o noche según el sol
     const day = m.wx ? m.wx.d !== 0 : sunUp(m.la, m.lo, m.t);
@@ -781,27 +788,48 @@ function nightify(map) {
         marker = new maplibregl.Marker({ element: markerEl, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat(p).addTo(map);
         carPos = p; carHead = heading;
         refreshCar();
-      } else { refreshCar(); moveCar(p); }
+      } else {
+        // Avisos antiguos (al abrir la página o al volver a ella) se colocan rápido; los que llegan en directo se deslizan
+        const gap = prev ? m.t - prev.t : 0, live = Date.now() - m.t < 90000;
+        refreshCar(); moveCar(p, live && gap > 0 ? Math.max(1000, Math.min(gap, 60000)) : 800);
+      }
       drawRoute(m, first);
-      if (follow && (view !== 0 || first)) camera(!first);
+      if (follow && first) camera(false);
     } catch (e) { console.warn(e); }
     render();
   }
 
-  const handle = j => { if (j && j.event === 'message' && j.message) onMessage(j.id || j.message.slice(0, 24), j.message); };
-  try {
-    const es = new EventSource(`https://ntfy.sh/${topic}/sse?since=12h`);
-    es.onmessage = e => { try { handle(JSON.parse(e.data)); } catch {} };
-    es.onerror = () => { if (!last) show('📡', 'Esperando señal…', 'Aún no ha llegado ninguna posición. Se actualizará sola.'); };
-  } catch (e) { console.warn(e); }
-  async function poll() {
+  // Recepción. La conexión en directo (SSE) trae los avisos según llegan; si se corta (pantalla apagada, cambio de red,
+  // el servidor pide ir más despacio) se vuelve a abrir sola y, mientras tanto, se piden solo los avisos que falten.
+  // Antes se pedía todo el historial cada 15 s: muchos datos y tantas peticiones que el servidor acababa cortando.
+  let lastId = '', es = null, sseAt = 0, connAt = 0, pollPause = 0;
+  const handle = j => { if (j && j.event === 'message' && j.message) { if (j.id) lastId = j.id; onMessage(j.id || j.message.slice(0, 24), j.message); } };
+  function connect() {
+    connAt = Date.now();
+    try { if (es) es.close(); } catch (e) {}
     try {
-      const r = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=12h`, { cache: 'no-store' });
+      es = new EventSource(`https://ntfy.sh/${topic}/sse?since=${lastId || '12h'}`);
+      const alive = () => { sseAt = Date.now(); };
+      es.onopen = alive; es.addEventListener('open', alive); es.addEventListener('keepalive', alive);
+      es.onmessage = e => { alive(); try { handle(JSON.parse(e.data)); } catch (x) {} };
+      es.onerror = () => { if (!last) show('📡', 'Esperando señal…', 'Aún no ha llegado ninguna posición. Se actualizará sola.'); };
+    } catch (e) { console.warn(e); es = null; }
+  }
+  async function poll() {
+    if (Date.now() < pollPause) return;
+    try {
+      const r = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=${lastId || '12h'}`, { cache: 'no-store' });
+      if (r.status === 429) { pollPause = Date.now() + 90000; return; }
       const txt = await r.text();
-      for (const line of txt.split('\n')) { if (line.trim()) { try { handle(JSON.parse(line)); } catch {} } }
+      for (const line of txt.split('\n')) { if (line.trim()) { try { handle(JSON.parse(line)); } catch (x) {} } }
     } catch (e) { console.warn(e); }
   }
-  poll(); setInterval(poll, 15000);
+  const sseDown = () => !es || es.readyState === 2 || Date.now() - sseAt > 75000;
+  connect();
+  setTimeout(() => { if (!sseAt && !last) poll(); }, 4000);
+  setInterval(() => { if (document.hidden || !sseDown()) return; poll(); if (Date.now() - connAt > 60000) connect(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && sseDown()) { poll(); if (Date.now() - connAt > 15000) connect(); } });
+  window.addEventListener('online', () => { poll(); connect(); });
 
   // «Estoy mirando»: señal anónima y cifrada; el identificador sale del propio navegador para no contar dos veces
   const b64u = u8 => btoa(String.fromCharCode(...u8)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -823,7 +851,7 @@ function nightify(map) {
       await fetch(`https://ntfy.sh/${topic}_v`, { method: 'POST', body: b64u(all) });
     } catch (e) {}
   }
-  beat(); setInterval(beat, 25000); document.addEventListener('visibilitychange', beat);
+  beat(); setInterval(beat, 60000);   // una vez por minuto: cada aviso cuenta para el cupo diario del servidor
   setTimeout(() => { if (!last) show('⏳', 'Esperando la primera posición', 'Cuando empiece a compartir aparecerá aquí. La página se actualiza sola.'); }, 12000);
   setInterval(render, 5000);
 })();
