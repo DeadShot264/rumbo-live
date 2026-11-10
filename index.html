@@ -799,36 +799,66 @@ function nightify(map) {
     render();
   }
 
-  // Recepción. La conexión en directo (SSE) trae los avisos según llegan; si se corta (pantalla apagada, cambio de red,
-  // el servidor pide ir más despacio) se vuelve a abrir sola y, mientras tanto, se piden solo los avisos que falten.
-  // Antes se pedía todo el historial cada 15 s: muchos datos y tantas peticiones que el servidor acababa cortando.
-  let lastId = '', es = null, sseAt = 0, connAt = 0, pollPause = 0;
-  const handle = j => { if (j && j.event === 'message' && j.message) { if (j.id) lastId = j.id; onMessage(j.id || j.message.slice(0, 24), j.message); } };
+  // Recepción. Los mensajes llegan de la base de datos de Rumbo (Firebase) en directo; los enlaces de quien aún no ha
+  // actualizado la app siguen llegando por ntfy.sh. Si la conexión se corta (pantalla apagada, cambio de red) se
+  // vuelve a abrir sola y, mientras tanto, se piden solo los mensajes que falten.
+  const FB = 'https://rumbo-4760d-default-rtdb.europe-west1.firebasedatabase.app';
+  const kq = encodeURIComponent('"$key"');
+  let mode = FB ? 'fb' : 'ntfy', reconn = 0, lastId = '', es = null, sseAt = 0, connAt = 0, pollPause = 0, ntfyCheck = 0;
+  const alive = () => { sseAt = Date.now(); };
+  const handleNtfy = j => { if (j && j.event === 'message' && j.message) { if (j.id) lastId = j.id; onMessage(j.id || j.message.slice(0, 24), j.message); } };
+  const handleFb = (k, v) => { if (typeof v === 'string' && k) { if (k > lastId) lastId = k; onMessage(k, v); } };
+  const handleFbAll = o => { if (o && typeof o === 'object') Object.keys(o).sort().forEach(k => handleFb(k, o[k])); };
+  const fbQuery = () => lastId ? `orderBy=${kq}&startAt=${encodeURIComponent('"' + lastId + '"')}` : `orderBy=${kq}&limitToLast=600`;
   function connect() {
     connAt = Date.now();
     try { if (es) es.close(); } catch (e) {}
     try {
-      es = new EventSource(`https://ntfy.sh/${topic}/sse?since=${lastId || '12h'}`);
-      const alive = () => { sseAt = Date.now(); };
-      es.onopen = alive; es.addEventListener('open', alive); es.addEventListener('keepalive', alive);
-      es.onmessage = e => { alive(); try { handle(JSON.parse(e.data)); } catch (x) {} };
-      es.onerror = () => { if (!last) show('📡', 'Esperando señal…', 'Aún no ha llegado ninguna posición. Se actualizará sola.'); };
+      if (mode === 'fb') {
+        es = new EventSource(`${FB}/live/${topic}.json?${fbQuery()}`);
+        es.addEventListener('put', e => { alive(); try { const d = JSON.parse(e.data);
+          if (d.path === '/') { if (d.data) handleFbAll(d.data); else if (!last) tryNtfy(); } else handleFb(d.path.slice(1), d.data); } catch (x) {} });
+        es.addEventListener('patch', e => { alive(); try { handleFbAll(JSON.parse(e.data).data); } catch (x) {} });
+        es.addEventListener('keep-alive', alive);
+        es.addEventListener('cancel', () => { try { es.close(); } catch (x) {} });
+      } else {
+        es = new EventSource(`https://ntfy.sh/${topic}/sse?since=${lastId || '12h'}`);
+        es.onopen = alive; es.addEventListener('keepalive', alive);
+        es.onmessage = e => { alive(); try { handleNtfy(JSON.parse(e.data)); } catch (x) {} };
+      }
+      // Al cortarse se reabre pidiendo solo lo que falta (la reconexión automática del navegador volvería a bajarlo todo)
+      es.onerror = () => { if (!last) show('📡', 'Esperando señal…', 'Aún no ha llegado ninguna posición. Se actualizará sola.');
+        try { es.close(); } catch (x) {} clearTimeout(reconn); reconn = setTimeout(() => { if (!document.hidden) connect(); }, 4000); };
     } catch (e) { console.warn(e); es = null; }
+  }
+  // ¿Comparte con una versión antigua de Rumbo? Entonces sus mensajes están en ntfy.sh
+  async function tryNtfy() {
+    if (mode !== 'fb' || Date.now() - ntfyCheck < 55000) return;
+    ntfyCheck = Date.now();
+    try {
+      const r = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=12h`, { cache: 'no-store' });
+      if (!r.ok) return;
+      const lines = (await r.text()).split('\n').filter(l => l.trim());
+      if (!lines.length || last) return;
+      mode = 'ntfy'; lastId = '';
+      for (const line of lines) { try { handleNtfy(JSON.parse(line)); } catch (x) {} }
+      connect();
+    } catch (e) {}
   }
   async function poll() {
     if (Date.now() < pollPause) return;
     try {
-      const r = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=${lastId || '12h'}`, { cache: 'no-store' });
+      const r = await fetch(mode === 'fb' ? `${FB}/live/${topic}.json?${fbQuery()}` : `https://ntfy.sh/${topic}/json?poll=1&since=${lastId || '12h'}`, { cache: 'no-store' });
       if (r.status === 429) { pollPause = Date.now() + 90000; return; }
-      const txt = await r.text();
-      for (const line of txt.split('\n')) { if (line.trim()) { try { handle(JSON.parse(line)); } catch (x) {} } }
+      if (mode === 'fb') { handleFbAll(await r.json()); if (!last) tryNtfy(); return; }
+      for (const line of (await r.text()).split('\n')) { if (line.trim()) { try { handleNtfy(JSON.parse(line)); } catch (x) {} } }
     } catch (e) { console.warn(e); }
   }
   const sseDown = () => !es || es.readyState === 2 || Date.now() - sseAt > 75000;
   connect();
   setTimeout(() => { if (!sseAt && !last) poll(); }, 4000);
-  setInterval(() => { if (document.hidden || !sseDown()) return; poll(); if (Date.now() - connAt > 60000) connect(); }, 20000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && sseDown()) { poll(); if (Date.now() - connAt > 15000) connect(); } });
+  setInterval(() => { if (document.hidden) return; if (!last && mode === 'fb') tryNtfy(); if (!sseDown()) return; poll(); if (Date.now() - connAt > 60000) connect(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && sseDown()) { poll(); if (Date.now() - connAt > 5000) connect(); } });
   window.addEventListener('online', () => { poll(); connect(); });
 
   // «Estoy mirando»: señal anónima y cifrada; el identificador sale del propio navegador para no contar dos veces
@@ -848,7 +878,8 @@ function nightify(map) {
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify({ v: viewer, t: Date.now() }))));
       const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
-      await fetch(`https://ntfy.sh/${topic}_v`, { method: 'POST', body: b64u(all) });
+      if (mode === 'fb') await fetch(`${FB}/live/${topic}_v.json`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b64u(all)) });
+      else await fetch(`https://ntfy.sh/${topic}_v`, { method: 'POST', body: b64u(all) });
     } catch (e) {}
   }
   beat(); setInterval(beat, 60000);   // una vez por minuto: cada aviso cuenta para el cupo diario del servidor
